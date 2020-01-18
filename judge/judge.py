@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 import argparse
 import configparser
@@ -88,6 +88,7 @@ class LocalJudge:
         except KeyError as e:
             print(RED + "[ERROR] " + NC + str(e) +
                   " field was not found in config file.")
+            print("Please check `judge.conf` first.")
             exit(1)
         try:
             # Create the temporary directory for output
@@ -109,6 +110,7 @@ class LocalJudge:
         if process.returncode != 0:
             print(RED + "[ERROR] " + NC + "failed in build stage.")
             print(str(err, encoding='utf8'))
+            print("Please check `Makefile` first.")
             exit(1)
 
     def run(self, input_filepath):
@@ -126,6 +128,7 @@ class LocalJudge:
         if process.returncode != 0:
             print(RED + "[ERROR] " + NC + "failed in run stage.")
             print(str(err, encoding='utf8'))
+            print("Please check `your program` first.")
             exit(1)
         return output_filepath
 
@@ -144,7 +147,7 @@ class LocalJudge:
             print(RED + "[ERROR] " + NC + "failed in compare stage.")
             print(str(err, encoding='utf8'))
             print("There was no any corresponding answer. Did you set the `AnswerDir` correctly?")
-            print("Please check judge.conf first.")
+            print("Please check `judge.conf` first.")
             exit(1)
         if self.delete_temp_output == "true":
             os.remove(output_filepath)
@@ -165,7 +168,7 @@ class Report:
         if not self.test:
             print(RED + "[ERROR] " + NC + "failed in report stage.")
             print("There was no any result to report. Did you set the `Inputs` correctly?")
-            print("Please check judge.conf first.")
+            print("Please check `judge.conf` first.")
             exit(1)
 
         # Get the window size of the current terminal.
@@ -200,6 +203,7 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read(args.config)
     if config.sections() == []:
+        print(RED + "[ERROR] " + NC + "failed in config stage.")
         raise FileNotFoundError(args.config)
     judge = LocalJudge(config)
     judge.build()
