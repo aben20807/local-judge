@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 
 import argparse
 import configparser
@@ -51,6 +51,11 @@ parser.add_argument(
     help="the verbose level",
     type=int,
     default=0)
+parser.add_argument(
+    "-i", "--input",
+    help="judge only one input with showing diff result",
+    type=str,
+    default=None)
 
 
 def get_filename(path):
@@ -58,8 +63,8 @@ def get_filename(path):
 
     input/a.txt -> a
     """
-    head, tail = ntpath.split(path)
-    return os.path.splitext(tail or ntpath.basename(head))[0]
+    head, tail = os.path.split(path)
+    return os.path.splitext(tail or os.path.basename(head))[0]
 
 
 def expand_path(dir, filename, extension):
@@ -146,7 +151,8 @@ class LocalJudge:
         if str(err, encoding='utf8').strip() != "":
             print(RED + "[ERROR] " + NC + "failed in compare stage.")
             print(str(err, encoding='utf8'))
-            print("There was no any corresponding answer. Did you set the `AnswerDir` correctly?")
+            print(
+                "There was no any corresponding answer. Did you set the `AnswerDir` correctly?")
             print("Please check `judge.conf` first.")
             exit(1)
         if self.delete_temp_output == "true":
@@ -167,7 +173,8 @@ class Report:
         # Return directly when the test is empty.
         if not self.test:
             print(RED + "[ERROR] " + NC + "failed in report stage.")
-            print("There was no any result to report. Did you set the `Inputs` correctly?")
+            print(
+                "There was no any result to report. Did you set the `Inputs` correctly?")
             print("Please check `judge.conf` first.")
             exit(1)
 
@@ -202,9 +209,21 @@ if __name__ == '__main__':
     args = parser.parse_args()
     config = configparser.ConfigParser()
     config.read(args.config)
+
+    # Check if the config file is empty or not exist.
     if config.sections() == []:
         print(RED + "[ERROR] " + NC + "failed in config stage.")
         raise FileNotFoundError(args.config)
+
+    # Assign specific input for this judgement
+    if not args.input == None:
+        if os.path.isfile(args.input):
+            config['Config']['Inputs'] = args.input
+        else:
+            parent = os.path.split(config['Config']['Inputs'])[0]
+            ext = os.path.splitext(config['Config']['Inputs'])[1]
+            config['Config']['Inputs'] = parent+os.sep+args.input+ext
+        args.verbose = True
     judge = LocalJudge(config)
     judge.build()
 

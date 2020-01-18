@@ -53,7 +53,7 @@ answer ━━━━━━━━━━━━━━━▶ [compare] ━▶ correct
 
 ### Commands
 
-```bash
+```text
 usage: judge.py [-h] [-c CONFIG] [-v VERBOSE]
 
 optional arguments:
@@ -66,6 +66,10 @@ optional arguments:
                         the verbose level, default: `0`
                         `0`: suppress the diff results
                         `1`: show the diff results
+  -i INPUT, --input INPUT
+                        judge only one input with showing diff result
+                        path or test name both work
+                        for example: `-i xxxx` or `-i ../input/xxxx.txt`
 ```
 
 ## Examples
@@ -112,4 +116,22 @@ index 4f6ff86..3a2e3f4 100644
      b | ✔
 =======+========================================================================
 Total score: 75
+
+
+
+$ python3 ../../judge/judge.py -i xxxx
+=======+========================================================================
+Sample | Accept
+=======+========================================================================
+  xxxx | ✘
+-------+------------------------------------------------------------------------
+diff --git a/tmp/output/xxxx_1579357598.out b/../answer/xxxx.out
+index 4f6ff86..3a2e3f4 100644
+--- a/tmp/output/xxxx_1579357598.out
++++ b/../answer/xxxx.out
+@@ -1 +1 @@
+4294967295-1
+
+=======+========================================================================
+Total score: 0
 ```
