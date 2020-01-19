@@ -22,14 +22,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.2.0'
+__version__ = '1.3.0'
 
 import argparse
 import configparser
 from collections import namedtuple
 from itertools import repeat
 from glob import glob as globbing
-import ntpath
 import os
 import subprocess
 from subprocess import PIPE
@@ -72,7 +71,7 @@ def expand_path(dir, filename, extension):
 
     a -> answer/a.out
     """
-    return os.path.join(dir, filename+extension)
+    return os.path.abspath(os.path.join(dir, filename+extension))
 
 
 class LocalJudge:
@@ -86,7 +85,7 @@ class LocalJudge:
             self.temp_output_dir = self._config['TempOutputDir']
             self.diff_command = self._config['DiffCommand']
             self.delete_temp_output = self._config['DeleteTempOutput']
-            self._inputs = globbing(self._config['Inputs'])
+            self._inputs = [os.path.abspath(path) for path in globbing(self._config['Inputs'])]
             self._tests = [get_filename(path) for path in self._inputs]
             self._answers = [expand_path(self._config['AnswerDir'], filename,
                                          self._config['AnswerExtension']) for filename in self._tests]
