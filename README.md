@@ -3,13 +3,13 @@
 Given source code, Makefile (or build commands), input files, and answer files then judge the program locally.
 
 ```
-source code ━━━━━━┓
-                  ┃ [build]
-                  ▼
-[run] input ━▶ program ━▶ output
-                            ┃
-                            ▼
-answer ━━━━━━━━━━━━━━━▶ [compare] ━▶ correctness, diff result
+source code --------+
+                    | [build]
+                    v
+[run] input ---> program ---> output
+                                |
+                                v
+answer -------------------> [compare] ---> correctness, diff result
 ```
 
 ## Features
@@ -24,12 +24,12 @@ answer ━━━━━━━━━━━━━━━▶ [compare] ━▶ correct
 + Ubuntu 18.04
 + python 3.6
 
-## Usage
+## Usage (Student)
 
 ### Configuration
 
 + `judge.conf`: be placed in the root of your program
-+ Content:
+  + Content:
     + `BuildCommand`: how to build the executable
     + `Executable`: the name of the executable
     + `Inputs`: input files (can use wildcard)
@@ -38,7 +38,7 @@ answer ━━━━━━━━━━━━━━━▶ [compare] ━▶ correct
     + `DeleteTempOutput`: whether to delete the temporary output after finding the differences (true or false)
     + `AnswerDir`: the directory where contains the answer files corresponding to the input files
     + `AnswerExtension`: the extension of the answer files
-+ Example config file:
+  + Example config file:
     ```conf
     [Config]
     BuildCommand = make clean && make
@@ -72,7 +72,7 @@ optional arguments:
                         for example: `-i xxxx` or `-i ../input/xxxx.txt`
 ```
 
-## Examples
+### Examples
 
 ```bash
 $ cd examples/wrong/
@@ -134,4 +134,58 @@ index 4f6ff86..3a2e3f4 100644
 
 =======+========================================================================
 Total score: 0
+```
+
+## Usage (TA)
+
+### Configuration
+
++ `judge.conf`: (Same as student)
++ `ta_judge.config`
+  + Content:
+    + `StudentsZipContainer`: the directory where contains students' submit homeworks
+    + `StudentsPattern`: used to match zip files
+    + `StudentsExtractDir`: the directory where contains extracted homeworks
+    + `ScoreOutput`: the output excel file
+  + Example config file:
+      ```conf
+      [TaConfig]
+      StudentsZipContainer = ./zip
+      StudentsPattern = (\w*)_(HW1)\.(.*)
+      StudentsExtractDir = ./extract
+      ScoreOutput = hw1.xlsx
+      ```
+
+### Commands
+
+```text
+usage: ta_judge.py [-h] [-c CONFIG] [-t TA_CONFIG] [-s STUDENT]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c CONFIG, --config CONFIG
+                        the config file, default: `judge.conf`
+  -t TA_CONFIG, --ta-config TA_CONFIG
+                        the config file, default: `ta_judge.conf`
+  -s STUDENT, --student STUDENT
+                        judge only one student
+```
+
+### File architecture
+
+```text
+.
+├── judge.conf
+├── judge_resources/
+│   ├── answer/
+│   │   ├── hide1.out
+│   │   └── hide2.out
+│   └── input
+│       ├── hide1.txt
+│       └── hide2.txt
+├── ta_judge.conf
+└── zip/
+    ├── F12345678_HW1.zip
+    ├── OU2345678_HW1.rar
+    └── OU2345999_HW1.zip
 ```
