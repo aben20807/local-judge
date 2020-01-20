@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.2.0'
+__version__ = '1.3.0'
 
 import argparse
 import configparser
@@ -79,11 +79,14 @@ class TaJudge:
         for student_zip_path in self.students_zips:
             try:
                 match = regex.search(student_zip_path)
+                # group(1): whole filename for extracted path
+                # group(2): student id
+                # group(3): file type (zip or rar)
                 students.append(Student(
-                    match.group(1),
+                    match.group(2),
                     match.group(3),
                     os.path.abspath(student_zip_path),
-                    os.path.abspath(self.students_extract_dir+os.sep+match.group(1)+'_'+match.group(2))))
+                    os.path.abspath(self.students_extract_dir+os.sep+match.group(1))))
             except Exception as e:
                 logging.error("Failed in parse stage. `" + str(student_zip_path) +
                               "` did not match the file rule.")

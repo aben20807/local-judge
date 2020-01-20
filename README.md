@@ -14,10 +14,11 @@ answer -------------------> [compare] ---> correctness, diff result
 
 ## Features
 
-+ Student (`judge.py`)
++ Both
   + Automatically build the source code into executable
   + Automatically run the executable for each input and compare output with answer
   + Customization friendly
++ Student (`judge.py`)
   + Without any dependencies but standard build-in python packages
 + TA (`ta_judge.py`)
   + Support different zip type (`.zip`, `.rar`)
@@ -98,7 +99,7 @@ optional arguments:
       ```conf
       [TaConfig]
       StudentsZipContainer = ./zip
-      StudentsPattern = (\w*)_(HW1)\.(.*)
+      StudentsPattern = ((\w*)_HW1)\.(.*)
       StudentsExtractDir = ./extract
       ScoreOutput = hw1.xlsx
       ```
