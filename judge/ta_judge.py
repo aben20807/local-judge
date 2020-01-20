@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 
 import argparse
 import configparser
@@ -104,7 +104,8 @@ class TaJudge:
             z.extractall(self.students_extract_dir)
             z.close()
         except Exception as e:
-            logging.error("`" + str(student.id)+"` failed in extract stage. "+str(e))
+            logging.error("`" + str(student.id) +
+                          "` failed in extract stage. "+str(e))
 
 
 def cd_student_path(student):
@@ -129,10 +130,11 @@ def judge_one_student(lj, student):
     correctness = []
     report_table = []
     correctness.append(student.id)
-    for test in lj.io_map:
-        output = lj.run(lj.io_map[test][0])
-        accept, diff = lj.compare(output, lj.io_map[test][1])
-        report_table.append({'test': test, 'accept': accept, 'diff': diff})
+    for test in lj.tests:
+        output = lj.run(test.input_path)
+        accept, diff = lj.compare(output, test.answer_path)
+        report_table.append(
+            {'test': test.test_name, 'accept': accept, 'diff': diff})
         correctness.append(1 if accept else 0)
     return correctness, report_table
 
@@ -193,7 +195,7 @@ if __name__ == '__main__':
         # Init the table with the title
         book = Workbook()
         sheet = book.active
-        title = list(lj.io_map.keys())
+        title = [t.test_name for t in lj.tests]
         title.insert(0, "student id")
         sheet.append(title)
 

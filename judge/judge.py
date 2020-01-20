@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.5.1'
+__version__ = '1.6.0'
 
 import argparse
 import configparser
@@ -84,11 +84,10 @@ class LocalJudge:
             self.temp_output_dir = self._config['TempOutputDir']
             self.diff_command = self._config['DiffCommand']
             self.delete_temp_output = self._config['DeleteTempOutput']
-            self._inputs = [os.path.abspath(
-                path) for path in globbing(self._config['Inputs'])]
-            self._tests = [get_filename(path) for path in self._inputs]
-            self._answers = [expand_path(self._config['AnswerDir'], filename,
-                                         self._config['AnswerExtension']) for filename in self._tests]
+            self._ans_dir = self._config['AnswerDir']
+            self._ans_ext = self._config['AnswerExtension']
+            self._inputs = [
+                os.path.abspath(path) for path in globbing(self._config['Inputs'])]
         except KeyError as e:
             print(str(e) +
                   " field was not found in config file. " +
@@ -101,8 +100,12 @@ class LocalJudge:
         except OSError as e:
             if e.errno != os.errno.EEXIST:
                 ERR_HANDLER.handle(str(e))
-        # io_map contains corresponding input and answer files
-        self.io_map = dict(zip(self._tests, zip(self._inputs, self._answers)))
+        # tests contains corresponding input and answer path
+        Test = namedtuple('Test', ('test_name', 'input_path', 'answer_path'))
+        self.tests = [
+            Test(get_filename(path), path,
+                 expand_path(self._ans_dir, get_filename(path), self._ans_ext)) for path in self._inputs]
+        self.tests.sort(key=lambda t: t.test_name)
 
     def build(self):
         """ Build the executable which needs to be judged.
@@ -278,10 +281,11 @@ def judge_all_tests(config, verbose_level):
     judge.build()
 
     report = Report(verbose_level)
-    for test in judge.io_map:
-        output = judge.run(judge.io_map[test][0])
-        accept, diff = judge.compare(output, judge.io_map[test][1])
-        report.table.append({'test': test, 'accept': accept, 'diff': diff})
+    for test in judge.tests:
+        output = judge.run(test.input_path)
+        accept, diff = judge.compare(output, test.answer_path)
+        report.table.append(
+            {'test': test.test_name, 'accept': accept, 'diff': diff})
     report.print_report()
 
 
