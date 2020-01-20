@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.3.0'
+__version__ = '1.4.0'
 
 import argparse
 import configparser
@@ -38,23 +38,6 @@ GREEN = '\033[32m'
 RED = '\033[31m'
 BLUE = '\033[34m'
 NC = '\033[0m'
-
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "-c", "--config",
-    help="the config file",
-    type=str,
-    default=os.getcwd()+os.sep+"judge.conf")
-parser.add_argument(
-    "-v", "--verbose",
-    help="the verbose level",
-    type=int,
-    default=0)
-parser.add_argument(
-    "-i", "--input",
-    help="judge only one input with showing diff result",
-    type=str,
-    default=None)
 
 
 def get_filename(path):
@@ -74,6 +57,21 @@ def expand_path(dir, filename, extension):
     return os.path.abspath(os.path.join(dir, filename+extension))
 
 
+def create_specific_input(input_name_or_path, config):
+    if os.path.isfile(input_name_or_path):
+        specific_input = input_name_or_path
+    else:
+        parent = os.path.split(config['Config']['Inputs'])[0]
+        ext = os.path.splitext(config['Config']['Inputs'])[1]
+        specific_input = parent+os.sep+input_name_or_path+ext
+    specific_input = os.path.abspath(specific_input)
+    if not os.path.isfile(specific_input):
+        print(RED + "[ERROR] " + NC + specific_input +
+              " not found for specific input.")
+        exit(1)
+    return specific_input
+
+
 class LocalJudge:
     def __init__(self, config):
         """ Set the member from the config file.
@@ -85,7 +83,8 @@ class LocalJudge:
             self.temp_output_dir = self._config['TempOutputDir']
             self.diff_command = self._config['DiffCommand']
             self.delete_temp_output = self._config['DeleteTempOutput']
-            self._inputs = [os.path.abspath(path) for path in globbing(self._config['Inputs'])]
+            self._inputs = [os.path.abspath(
+                path) for path in globbing(self._config['Inputs'])]
             self._tests = [get_filename(path) for path in self._inputs]
             self._answers = [expand_path(self._config['AnswerDir'], filename,
                                          self._config['AnswerExtension']) for filename in self._tests]
@@ -204,8 +203,47 @@ class Report:
             print("For example: `python3 judge/judge.py -v 1`")
 
 
+def get_args():
+    """ Init argparser and return the args from cli.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-c", "--config",
+        help="the config file",
+        type=str,
+        default=os.getcwd()+os.sep+"judge.conf")
+    parser.add_argument(
+        "-v", "--verbose",
+        help="the verbose level",
+        type=int,
+        default=0)
+    parser.add_argument(
+        "-i", "--input",
+        help="judge only one input with showing diff result",
+        type=str,
+        default=None)
+    return parser.parse_args()
+
+
+def judge_all_tests(config, verbose_level):
+    """ Judge all tests for given program.
+
+    If `--input` is set, there is only one input in this judgement.
+    """
+    judge = LocalJudge(config)
+    judge.build()
+
+    report = Report(verbose_level)
+    for test in judge.io_map:
+        output = judge.run(judge.io_map[test][0])
+        accept, diff = judge.compare(output, judge.io_map[test][1])
+        report.table.append({'test': test, 'accept': accept, 'diff': diff})
+        report.test.append(test)
+    report.print_report()
+
+
 if __name__ == '__main__':
-    args = parser.parse_args()
+    args = get_args()
     config = configparser.ConfigParser()
     config.read(args.config)
 
@@ -216,20 +254,7 @@ if __name__ == '__main__':
 
     # Assign specific input for this judgement
     if not args.input == None:
-        if os.path.isfile(args.input):
-            config['Config']['Inputs'] = args.input
-        else:
-            parent = os.path.split(config['Config']['Inputs'])[0]
-            ext = os.path.splitext(config['Config']['Inputs'])[1]
-            config['Config']['Inputs'] = parent+os.sep+args.input+ext
         args.verbose = True
-    judge = LocalJudge(config)
-    judge.build()
+        config['Config']['Inputs'] = create_specific_input(args.input, config)
 
-    report = Report(args.verbose)
-    for test in judge.io_map:
-        output = judge.run(judge.io_map[test][0])
-        accept, diff = judge.compare(output, judge.io_map[test][1])
-        report.table.append({'test': test, 'accept': accept, 'diff': diff})
-        report.test.append(test)
-    report.print_report()
+    judge_all_tests(config, args.verbose)
