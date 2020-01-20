@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.5.0'
+__version__ = '1.5.1'
 
 import argparse
 import configparser
@@ -282,7 +282,6 @@ def judge_all_tests(config, verbose_level):
         output = judge.run(judge.io_map[test][0])
         accept, diff = judge.compare(output, judge.io_map[test][1])
         report.table.append({'test': test, 'accept': accept, 'diff': diff})
-        report.test.append(test)
     report.print_report()
 
 
