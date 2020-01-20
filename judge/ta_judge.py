@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 import argparse
 import configparser
@@ -35,34 +35,9 @@ import re
 from collections import namedtuple
 import logging
 
+import judge
 from judge import LocalJudge
-
-GREEN = '\033[32m'
-RED = '\033[31m'
-BLUE = '\033[34m'
-NC = '\033[0m'
-
-
-FORMAT = '%(asctime)-15s %(message)s'
-logging.basicConfig(filename='ta_judge.log', filemode='a', format=FORMAT)
-
-
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "-c", "--config",
-    help="the config file",
-    type=str,
-    default=os.getcwd()+os.sep+"judge.conf")
-parser.add_argument(
-    "-t", "--ta-config",
-    help="the config file",
-    type=str,
-    default=os.getcwd()+os.sep+"ta_judge.conf")
-parser.add_argument(
-    "-s", "--student",
-    help="judge only one student",
-    type=str,
-    default=None)
+from judge import ErrorHandler
 
 
 class TaJudge:
@@ -79,7 +54,7 @@ class TaJudge:
             self.students = self._parse_students()
             self.students.sort(key=lambda x: x.id)
         except KeyError as e:
-            print(RED + "[ERROR] " + NC + str(e) +
+            print("[ERROR] "+str(e) +
                   " field was not found in config file.")
             print("Please check `judge.conf` first.")
             exit(1)
@@ -89,7 +64,7 @@ class TaJudge:
             os.makedirs(self.students_extract_dir)
         except OSError as e:
             if e.errno != os.errno.EEXIST:
-                print(RED + "[ERROR] " + NC + str(e))
+                print("[ERROR] "+str(e))
                 exit(1)
 
     def _parse_students(self):
@@ -102,12 +77,16 @@ class TaJudge:
         regex = re.compile(self.students_pattern)
         students = []
         for student_zip_path in self.students_zips:
-            match = regex.search(student_zip_path)
-            students.append(Student(
-                match.group(1),
-                match.group(3),
-                os.path.abspath(student_zip_path),
-                os.path.abspath(self.students_extract_dir+os.sep+match.group(1)+'_'+match.group(2))))
+            try:
+                match = regex.search(student_zip_path)
+                students.append(Student(
+                    match.group(1),
+                    match.group(3),
+                    os.path.abspath(student_zip_path),
+                    os.path.abspath(self.students_extract_dir+os.sep+match.group(1)+'_'+match.group(2))))
+            except Exception as e:
+                logging.error("Failed in parse stage. `" + str(student_zip_path) +
+                              "` did not match the file rule.")
         return students
 
     def extract_student(self, student):
@@ -119,92 +98,121 @@ class TaJudge:
             elif student.zip_type == 'rar':
                 z = rarfile.RarFile(student.zip_path)
             else:
-                logging.error("[ERROR] " + student.id +
-                              " failed in extract stage with unknown zip type.")
+                logging.error(str(
+                    student.id)+" failed in extract stage with unknown zip type: `"+student.zip_type+"`")
                 return
             z.extractall(self.students_extract_dir)
             z.close()
         except Exception as e:
-            logging.error("[ERROR] " + student.id +
-                          " failed in extract stage." + str(e))
+            logging.error("`" + str(student.id)+"` failed in extract stage. "+str(e))
 
-
-def specific_cases(args_student):
-    """ Handle the case that judge only one student.
-    """
-    # Find the student
-    student = [s for s in tj.students if s.id == args_student][0]
-    tj.extract_student(student)
-    wd = os.getcwd()
-    try:
-        os.chdir(student.extract_path)
-    except FileNotFoundError as e:
-        logging.error("[ERROR] " + student.id + str(e))
-        exit(1)
-    judge.build()
-    from judge import Report
-    report = Report(report_verbose=True)
-    for test in judge.io_map:
-        output = judge.run(judge.io_map[test][0])
-        accept, diff = judge.compare(output, judge.io_map[test][1])
-        report.table.append({'test': test, 'accept': accept, 'diff': diff})
-        report.test.append(test)
-    report.print_report()
-    os.chdir(wd)
-    exit(0)
 
 def cd_student_path(student):
+    """ Change directory to student source code.
+    """
     try:
         os.chdir(student.extract_path)
     except FileNotFoundError as e:
-        logging.error("[ERROR] " + student.id + str(e))
-        return False
-    return True
+        logging.error(str(student.id)+" "+str(e))
+
+
+def find_student_by_id(student_id, students):
+    """ Find the student from the students by id.
+    """
+    return [s for s in students if s.id == student_id]
+
+
+def judge_one_student(lj, student):
+    """ Judge one student and return the correctness result.
+    """
+    lj.build()
+    correctness = []
+    report_table = []
+    correctness.append(student.id)
+    for test in lj.io_map:
+        output = lj.run(lj.io_map[test][0])
+        accept, diff = lj.compare(output, lj.io_map[test][1])
+        report_table.append({'test': test, 'accept': accept, 'diff': diff})
+        correctness.append(1 if accept else 0)
+    return correctness, report_table
+
+
+def get_args():
+    """ Init argparser and return the args from cli.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-c", "--config",
+        help="the config file",
+        type=str,
+        default=os.getcwd()+os.sep+"judge.conf")
+    parser.add_argument(
+        "-t", "--ta-config",
+        help="the config file",
+        type=str,
+        default=os.getcwd()+os.sep+"ta_judge.conf")
+    parser.add_argument(
+        "-s", "--student",
+        help="judge only one student",
+        type=str,
+        default=None)
+    return parser.parse_args()
+
 
 if __name__ == '__main__':
-    args = parser.parse_args()
+    args = get_args()
     config = configparser.ConfigParser()
     ta_config = configparser.ConfigParser()
     config.read(args.config)
     ta_config.read(args.ta_config)
 
+    logging_config = {
+        'filename': 'ta_judge.log',
+        'filemode': 'a',
+        'format': '%(asctime)-15s [%(levelname)s] %(message)s'}
+    judge.ERR_HANDLER = ErrorHandler('log', **logging_config)
+
     # Check if the config file is empty or not exist.
     if config.sections() == [] or ta_config.sections() == []:
-        print(RED + "[ERROR] " + NC + "failed in config stage.")
+        print("[ERROR] Failed in config stage.")
         raise FileNotFoundError(
             args.config if config.sections() == [] else args.ta_config)
 
     tj = TaJudge(ta_config)
-    judge = LocalJudge(config)
+    lj = LocalJudge(config)
 
-    # Assign specific student for this judgement
+    here_path = os.getcwd()
+    students = tj.students
+
     if not args.student == None:
-        specific_cases(args.student)
+        # Assign specific student for this judgement
+        report_only = True
+        students = find_student_by_id(args.student, tj.students)
+    else:
+        report_only = False
+        # Init the table with the title
+        book = Workbook()
+        sheet = book.active
+        title = list(lj.io_map.keys())
+        title.insert(0, "student id")
+        sheet.append(title)
 
-    # Init the table with the title
-    wb = Workbook()
-    ws = wb.active
-    title = list(judge.io_map.keys())
-    title.insert(0, "student id")
-    ws.append(title)
-
-    for student in tj.students:
+    for student in students:
+        judge.ERR_HANDLER.set_student_id(student.id)
         tj.extract_student(student)
-        wd = os.getcwd()
-        if not cd_student_path(student):
-            continue
-
-        judge.build()
-        row = []
-        row.append(student.id)
-        for test in judge.io_map:
-            output = judge.run(judge.io_map[test][0])
-            accept, diff = judge.compare(output, judge.io_map[test][1])
-            row.append(1 if accept else 0)
-
-        ws.append(row)
+        cd_student_path(student)
+        result, report_table = judge_one_student(lj, student)
         # Restore the path
-        os.chdir(wd)
+        os.chdir(here_path)
 
-    wb.save(ta_config['TaConfig']['ScoreOutput'])
+        if report_only:
+            from judge import Report
+            report = Report(report_verbose=True)
+            report.table = report_table
+            report.print_report()
+        else:
+            sheet.append(result)
+
+    if not report_only:
+        book.save(ta_config['TaConfig']['ScoreOutput'])
     print("Finished")

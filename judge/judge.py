@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.4.0'
+__version__ = '1.5.0'
 
 import argparse
 import configparser
@@ -33,11 +33,13 @@ import os
 import subprocess
 from subprocess import PIPE
 import time
+import logging
 
 GREEN = '\033[32m'
 RED = '\033[31m'
-BLUE = '\033[34m'
 NC = '\033[0m'
+
+ERR_HANDLER = None
 
 
 def get_filename(path):
@@ -66,9 +68,8 @@ def create_specific_input(input_name_or_path, config):
         specific_input = parent+os.sep+input_name_or_path+ext
     specific_input = os.path.abspath(specific_input)
     if not os.path.isfile(specific_input):
-        print(RED + "[ERROR] " + NC + specific_input +
-              " not found for specific input.")
-        exit(1)
+        ERR_HANDLER.handle(specific_input +
+                           " not found for specific input.")
     return specific_input
 
 
@@ -89,18 +90,17 @@ class LocalJudge:
             self._answers = [expand_path(self._config['AnswerDir'], filename,
                                          self._config['AnswerExtension']) for filename in self._tests]
         except KeyError as e:
-            print(RED + "[ERROR] " + NC + str(e) +
-                  " field was not found in config file.")
-            print("Please check `judge.conf` first.")
-            exit(1)
+            print(str(e) +
+                  " field was not found in config file. " +
+                  "Please check `judge.conf` first.")
+            ERR_HANDLER.handle(exit_or_log='exit')
         try:
             # Create the temporary directory for output
             # Suppress the error when the directory already exists
             os.makedirs(self.temp_output_dir)
         except OSError as e:
             if e.errno != os.errno.EEXIST:
-                print(RED + "[ERROR] " + NC + str(e))
-                exit(1)
+                ERR_HANDLER.handle(str(e))
         # io_map contains corresponding input and answer files
         self.io_map = dict(zip(self._tests, zip(self._inputs, self._answers)))
 
@@ -111,10 +111,15 @@ class LocalJudge:
             self.build_command, stdout=PIPE, stderr=PIPE, shell=True)
         out, err = process.communicate()
         if process.returncode != 0:
-            print(RED + "[ERROR] " + NC + "failed in build stage.")
-            print(str(err, encoding='utf8'))
-            print("Please check `Makefile` first.")
-            exit(1)
+            ERR_HANDLER.handle(
+                "Failed in build stage.\n" +
+                str(err, encoding='utf8') +
+                " Please check `Makefile` or your file architecture first.")
+        if not os.path.isfile(self.executable):
+            ERR_HANDLER.handle(
+                "Failed in build stage. " +
+                "executable `"+self.executable+"` not found." +
+                " Please check `Makefile` first.")
 
     def run(self, input_filepath):
         """ Run the executable with input.
@@ -122,6 +127,8 @@ class LocalJudge:
         The output will be temporarily placed in specific location,
         and the path will be returned for the validation.
         """
+        if not os.path.isfile(self.executable):
+            return "no_executable_to_run"
         output_filepath = os.path.join(self.temp_output_dir, get_filename(
             input_filepath)+"_"+str(int(time.time()))+".out")
         cmd = "".join(["./", self.executable, " < ",
@@ -129,10 +136,10 @@ class LocalJudge:
         process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         out, err = process.communicate()
         if process.returncode != 0:
-            print(RED + "[ERROR] " + NC + "failed in run stage.")
-            print(str(err, encoding='utf8'))
-            print("Please check `your program` first.")
-            exit(1)
+            ERR_HANDLER.handle(
+                "Failed in run stage. " +
+                str(err, encoding='utf8') +
+                "Please check `your program` first.")
         return output_filepath
 
     def compare(self, output_filepath, answer_filepath):
@@ -141,18 +148,26 @@ class LocalJudge:
         If the files are identical, the accept will be set to True.
         Another return value is the diff result.
         """
+        if not os.path.isfile(output_filepath):
+            ERR_HANDLER.handle(
+                "There was no any output from your program to compare with `" +
+                answer_filepath +
+                "` Please check `your program` first.")
+            return False, "no_executable_to_run"
+        if not os.path.isfile(answer_filepath):
+            ERR_HANDLER.handle(
+                "There was no any corresponding answer. " +
+                "Did you set the `AnswerDir` correctly? " +
+                "Please check `judge.conf` first.")
+            return False, "no_executable_to_run"
         cmd = "".join(
             [self.diff_command, " ", output_filepath, " ", answer_filepath])
         process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         out, err = process.communicate()
         # If there is difference between two files, the return code is not 0
         if str(err, encoding='utf8').strip() != "":
-            print(RED + "[ERROR] " + NC + "failed in compare stage.")
-            print(str(err, encoding='utf8'))
-            print(
-                "There was no any corresponding answer. Did you set the `AnswerDir` correctly?")
-            print("Please check `judge.conf` first.")
-            exit(1)
+            ERR_HANDLER.handle("Failed in compare stage. " +
+                               str(err, encoding='utf8'))
         if self.delete_temp_output == "true":
             os.remove(output_filepath)
         accept = process.returncode == 0
@@ -163,23 +178,26 @@ class Report:
     def __init__(self, report_verbose):
         self.report_verbose = report_verbose
         self.table = []
-        self.test = []
 
     def print_report(self):
         """ Print the report into table view.
         """
+        self.table.sort(key=lambda x: x['test'])
+        tests = [x['test'] for x in self.table]
+
         # Return directly when the test is empty.
-        if not self.test:
-            print(RED + "[ERROR] " + NC + "failed in report stage.")
-            print(
-                "There was no any result to report. Did you set the `Inputs` correctly?")
-            print("Please check `judge.conf` first.")
-            exit(1)
+        if len(tests) == 0:
+            ERR_HANDLER.handle(
+                "Failed in report stage. " +
+                "There was no any result to report. " +
+                "Did you set the `Inputs` correctly? " +
+                "Please check `judge.conf` first.")
+            return
 
         # Get the window size of the current terminal.
         _, columns = subprocess.check_output(['stty', 'size']).split()
 
-        test_len = max(len(max(self.test, key=len)), len("Sample"))
+        test_len = max(len(max(tests, key=len)), len("Sample"))
         doubledash = ''.join(list(repeat("=", int(columns))))
         doubledash = doubledash[:test_len+1]+'+'+doubledash[test_len+2:]
         dash = ''.join(list(repeat("-", int(columns))))
@@ -196,11 +214,37 @@ class Report:
                 print(row['diff'])
         print(doubledash)
         correct = [row['accept'] for row in self.table].count(True)
-        score = int(100*correct/len(self.test))
+        score = int(100*correct/len(tests))
         print("Total score: " + str(score))
         if score < 100 and int(self.report_verbose) < 1:
-            print(BLUE + "\n[INFO]" + NC + " set `-v 1` to get diff result.")
+            print("\n[INFO] set `-v 1` to get diff result.")
             print("For example: `python3 judge/judge.py -v 1`")
+
+
+class ErrorHandler:
+    def __init__(self, exit_or_log, **logging_config):
+        self.exit_or_log = exit_or_log
+        self.student_id = ""
+        if logging_config == {}:
+            logging_config['format'] = '%(asctime)-15s [%(levelname)s] %(message)s'
+        logging.basicConfig(**logging_config)
+
+    def set_student_id(self, student_id):
+        self.student_id = student_id
+
+    def handle(self, msg="", exit_or_log=None):
+        action = self.exit_or_log
+        if not exit_or_log == None:
+            action = exit_or_log
+        if action == 'exit':
+            print(self.student_id+" "+msg)
+            exit(1)
+        elif action == 'log':
+            logging.error(self.student_id+" "+msg)
+        else:
+            print("Cannot handle `" + action +
+                  "`. Check ErrorHandler setting.")
+            exit(1)
 
 
 def get_args():
@@ -246,11 +290,12 @@ if __name__ == '__main__':
     args = get_args()
     config = configparser.ConfigParser()
     config.read(args.config)
+    ERR_HANDLER = ErrorHandler(config['Config']['ExitOrLog'])
 
     # Check if the config file is empty or not exist.
     if config.sections() == []:
-        print(RED + "[ERROR] " + NC + "failed in config stage.")
-        raise FileNotFoundError(args.config)
+        print("Failed in config stage. `"+str(args.config)+"` not found.")
+        ERR_HANDLER.handle(exit_or_log='exit')
 
     # Assign specific input for this judgement
     if not args.input == None:
