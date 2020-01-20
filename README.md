@@ -14,10 +14,15 @@ answer -------------------> [compare] ---> correctness, diff result
 
 ## Features
 
-+ Automatically build the source code into executable
-+ Automatically run the executable for each input and compare output with answer
-+ Customization friendly
-+ Without any dependencies but standard build-in python packages
++ Student (`judge.py`)
+  + Automatically build the source code into executable
+  + Automatically run the executable for each input and compare output with answer
+  + Customization friendly
+  + Without any dependencies but standard build-in python packages
++ TA (`ta_judge.py`)
+  + Support different zip type (`.zip`, `.rar`)
+  + When error is occurred, not interrupt or exit but just log it 
+  + Output to excel table
 
 ## Environment (Recommended)
 
@@ -72,71 +77,13 @@ optional arguments:
                         for example: `-i xxxx` or `-i ../input/xxxx.txt`
 ```
 
-### Examples
-
-```bash
-$ cd examples/wrong/
-$ python3 ../../judge/judge.py 
-=======+========================================================================
-Sample | Accept
-=======+========================================================================
-  xxxx | ✘
-=======+========================================================================
-    gg | ✔
-=======+========================================================================
-     a | ✔
-=======+========================================================================
-     b | ✔
-=======+========================================================================
-Total score: 75
-
-[INFO] set `-v 1` to get diff result.
-For example: `python3 judge/judge.py -v 1`
-
-
-
-$ python3 ../../judge/judge.py -v 1
-=======+========================================================================
-Sample | Accept
-=======+========================================================================
-  xxxx | ✘
--------+------------------------------------------------------------------------
-diff --git a/tmp/output/xxxx_1579351349.out b/../answer/xxxx.out
-index 4f6ff86..3a2e3f4 100644
---- a/tmp/output/xxxx_1579351349.out
-+++ b/../answer/xxxx.out
-@@ -1 +1 @@
-4294967295-1
-
-=======+========================================================================
-    gg | ✔
-=======+========================================================================
-     a | ✔
-=======+========================================================================
-     b | ✔
-=======+========================================================================
-Total score: 75
-
-
-
-$ python3 ../../judge/judge.py -i xxxx
-=======+========================================================================
-Sample | Accept
-=======+========================================================================
-  xxxx | ✘
--------+------------------------------------------------------------------------
-diff --git a/tmp/output/xxxx_1579357598.out b/../answer/xxxx.out
-index 4f6ff86..3a2e3f4 100644
---- a/tmp/output/xxxx_1579357598.out
-+++ b/../answer/xxxx.out
-@@ -1 +1 @@
-4294967295-1
-
-=======+========================================================================
-Total score: 0
-```
-
 ## Usage (TA)
+
+### Dependencies
+
++ `judge.py`
++ `openpyxl`: `pip install openpyxl`
++ `rarfile`: `pip install rarfile`
 
 ### Configuration
 
@@ -169,23 +116,4 @@ optional arguments:
                         the config file, default: `ta_judge.conf`
   -s STUDENT, --student STUDENT
                         judge only one student
-```
-
-### File architecture
-
-```text
-.
-├── judge.conf
-├── judge_resources/
-│   ├── answer/
-│   │   ├── hide1.out
-│   │   └── hide2.out
-│   └── input
-│       ├── hide1.txt
-│       └── hide2.txt
-├── ta_judge.conf
-└── zip/
-    ├── F12345678_HW1.zip
-    ├── OU2345678_HW1.rar
-    └── OU2345999_HW1.zip
 ```
