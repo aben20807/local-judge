@@ -44,6 +44,7 @@ answer -------------------> [compare] ---> correctness, diff result
     + `DeleteTempOutput`: whether to delete the temporary output after finding the differences (true or false)
     + `AnswerDir`: the directory where contains the answer files corresponding to the input files
     + `AnswerExtension`: the extension of the answer files
+    + `ExitOrLog`: exit when any error occurred or just log the error
   + Example config file:
     ```conf
     [Config]
@@ -55,6 +56,7 @@ answer -------------------> [compare] ---> correctness, diff result
     DeleteTempOutput = true
     AnswerDir = answer
     AnswerExtension = .out
+    ExitOrLog = exit
     ```
 
 ### Commands
