@@ -46,6 +46,7 @@ answer -------------------> [compare] ---> correctness, diff result
     + `AnswerDir`: the directory where contains the answer files corresponding to the input files
     + `AnswerExtension`: the extension of the answer files
     + `ExitOrLog`: exit when any error occurred or just log the error
+    + `TotalScore`: the total score of the assignment
   + Example config file:
     ```conf
     [Config]
@@ -59,6 +60,7 @@ answer -------------------> [compare] ---> correctness, diff result
     AnswerDir = answer
     AnswerExtension = .out
     ExitOrLog = exit
+    TotalScore = 100
     ```
 
 ### Commands
