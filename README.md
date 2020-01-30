@@ -38,6 +38,7 @@ answer -------------------> [compare] ---> correctness, diff result
   + Content:
     + `BuildCommand`: how to build the executable
     + `Executable`: the name of the executable
+    + `RunCommand`: how to run the executable with input and output
     + `Inputs`: input files (can use wildcard)
     + `TempOutputDir`: the temporary directory to place output files
     + `DiffCommand`: how to find differences between output and answer
@@ -50,6 +51,7 @@ answer -------------------> [compare] ---> correctness, diff result
     [Config]
     BuildCommand = make clean && make
     Executable = scanner
+    RunCommand = ./scanner < {input} > {output}
     Inputs = input/*.txt
     TempOutputDir = /tmp/output
     DiffCommand = git diff --no-index --color-words

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 MIT License
 
@@ -22,18 +24,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.6.0'
+__version__ = '1.7.0'
 
-import argparse
-import configparser
-from collections import namedtuple
-from itertools import repeat
-from glob import glob as globbing
-import os
-import subprocess
-from subprocess import PIPE
-import time
+import re
 import logging
+import time
+from subprocess import PIPE
+import subprocess
+import os
+from glob import glob as globbing
+from itertools import repeat
+from collections import namedtuple
+import configparser
+import argparse
+import sys
+if sys.version_info < (3,):
+    raise ImportError(
+        "You are running local-judge {} on Python 2\n".format(__version__) +
+        "Please use Python 3")
+
 
 GREEN = '\033[32m'
 RED = '\033[31m'
@@ -81,6 +90,7 @@ class LocalJudge:
             self._config = config['Config']
             self.build_command = self._config['BuildCommand']
             self.executable = self._config['Executable']
+            self.run_command = self._config['RunCommand']
             self.temp_output_dir = self._config['TempOutputDir']
             self.diff_command = self._config['DiffCommand']
             self.delete_temp_output = self._config['DeleteTempOutput']
@@ -134,8 +144,8 @@ class LocalJudge:
             return "no_executable_to_run"
         output_filepath = os.path.join(self.temp_output_dir, get_filename(
             input_filepath)+"_"+str(int(time.time()))+".out")
-        cmd = "".join(["./", self.executable, " < ",
-                       input_filepath, " > ", output_filepath])
+        cmd = re.sub(r'{input}', input_filepath, self.run_command)
+        cmd = re.sub(r'{output}', output_filepath, cmd)
         process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         out, err = process.communicate()
         if process.returncode != 0:

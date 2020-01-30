@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 MIT License
 
@@ -22,8 +24,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.3.0'
+__version__ = '1.4.0'
 
+from judge import ErrorHandler
+from judge import LocalJudge
+import judge
 import argparse
 import configparser
 import os
@@ -34,10 +39,11 @@ from glob import glob as globbing
 import re
 from collections import namedtuple
 import logging
-
-import judge
-from judge import LocalJudge
-from judge import ErrorHandler
+import sys
+if sys.version_info < (3,):
+    raise ImportError(
+        "You are running local-judge {} on Python 2\n".format(__version__) +
+        "Please use Python 3")
 
 
 class TaJudge:
