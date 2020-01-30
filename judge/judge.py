@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.7.0'
+__version__ = '1.8.0'
 
 import re
 import logging
@@ -188,7 +188,8 @@ class LocalJudge:
 
 
 class Report:
-    def __init__(self, report_verbose):
+    def __init__(self, report_verbose=0, total_score=100):
+        self.total_score = total_score
         self.report_verbose = report_verbose
         self.table = []
 
@@ -226,10 +227,12 @@ class Report:
                 print(dash)
                 print(row['diff'])
         print(doubledash)
-        correct = [row['accept'] for row in self.table].count(True)
-        score = int(100*correct/len(tests))
-        print("Total score: " + str(score))
-        if score < 100 and int(self.report_verbose) < 1:
+        correct_cnt = [row['accept'] for row in self.table].count(True)
+        correct_rate = float(100*correct_cnt/len(tests))
+        obtained_score = float(self.total_score)*correct_cnt/len(tests)
+        print("Correct rate: {}%\nObtained/Total scores: {}/{}".format(
+            str(correct_rate), str(obtained_score), self.total_score))
+        if obtained_score < float(self.total_score) and int(self.report_verbose) < 1:
             print("\n[INFO] set `-v 1` to get diff result.")
             print("For example: `python3 judge/judge.py -v 1`")
 
@@ -282,7 +285,7 @@ def get_args():
     return parser.parse_args()
 
 
-def judge_all_tests(config, verbose_level):
+def judge_all_tests(config, verbose_level, total_score):
     """ Judge all tests for given program.
 
     If `--input` is set, there is only one input in this judgement.
@@ -290,7 +293,7 @@ def judge_all_tests(config, verbose_level):
     judge = LocalJudge(config)
     judge.build()
 
-    report = Report(verbose_level)
+    report = Report(report_verbose=verbose_level, total_score=total_score)
     for test in judge.tests:
         output = judge.run(test.input_path)
         accept, diff = judge.compare(output, test.answer_path)
@@ -315,4 +318,4 @@ if __name__ == '__main__':
         args.verbose = True
         config['Config']['Inputs'] = create_specific_input(args.input, config)
 
-    judge_all_tests(config, args.verbose)
+    judge_all_tests(config, args.verbose, config['Config']['TotalScore'])
