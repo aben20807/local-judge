@@ -12,6 +12,8 @@ source code --------+
 answer -------------------> [compare] ---> correctness, diff result
 ```
 
+![screenshot](images/screenshot.png)
+
 ## Features
 
 + Both
@@ -29,6 +31,11 @@ answer -------------------> [compare] ---> correctness, diff result
 
 + Ubuntu 18.04
 + python 3.6
+
+## Examples
+
++ [student](examples/student/)
++ [TA](examples/ta/)
 
 ## Usage (Student)
 
