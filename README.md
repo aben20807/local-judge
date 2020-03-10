@@ -2,6 +2,8 @@
 
 Given source code, Makefile (or build commands), input files, and answer files then judge the program locally.
 
+## Workflow
+
 ```
 source code --------+
                     | [build]
@@ -12,6 +14,8 @@ source code --------+
 answer -------------------> [compare] ---> correctness, diff result
 ```
 
+## Screenshot
+
 ![screenshot](images/screenshot.png)
 
 ## Features
@@ -20,6 +24,7 @@ answer -------------------> [compare] ---> correctness, diff result
   + Automatically build the source code into executable
   + Automatically run the executable for each input and compare output with answer
   + Customization friendly
+  + Able to leverage git diff tool to compare the result with the answer
 + Student (`judge.py`)
   + Without any dependencies but standard build-in python packages
 + TA (`ta_judge.py`)
@@ -31,6 +36,7 @@ answer -------------------> [compare] ---> correctness, diff result
 
 + Ubuntu 18.04
 + python 3.6
++ git 2.17.1
 
 ## Examples
 
