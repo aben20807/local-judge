@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.8.0'
+__version__ = '1.9.0'
 
 import re
 import logging
@@ -232,9 +232,12 @@ class Report:
         obtained_score = float(self.total_score)*correct_cnt/len(tests)
         print("Correct rate: {}%\nObtained/Total scores: {}/{}".format(
             str(correct_rate), str(obtained_score), self.total_score))
+        returncode = 0
         if obtained_score < float(self.total_score) and int(self.report_verbose) < 1:
             print("\n[INFO] set `-v 1` to get diff result.")
             print("For example: `python3 judge/judge.py -v 1`")
+            returncode = 1
+        return returncode
 
 
 class ErrorHandler:
@@ -299,7 +302,7 @@ def judge_all_tests(config, verbose_level, total_score):
         accept, diff = judge.compare(output, test.answer_path)
         report.table.append(
             {'test': test.test_name, 'accept': accept, 'diff': diff})
-    report.print_report()
+    return report.print_report()
 
 
 if __name__ == '__main__':
@@ -318,4 +321,5 @@ if __name__ == '__main__':
         args.verbose = True
         config['Config']['Inputs'] = create_specific_input(args.input, config)
 
-    judge_all_tests(config, args.verbose, config['Config']['TotalScore'])
+    returncode = judge_all_tests(config, args.verbose, config['Config']['TotalScore'])
+    exit(returncode)
