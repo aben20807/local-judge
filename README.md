@@ -1,17 +1,30 @@
 # Local Judge
 
+[![Python version](https://img.shields.io/badge/python-%3E=_3.6-blue.svg)](https://www.python.org/downloads/)
+[![GitHub license](https://img.shields.io/github/license/aben20807/local-judge?color=blue)](LICENSE)
+[![GitHub release](https://img.shields.io/github/release/aben20807/local-judge.svg)](https://github.com/aben20807/local-judge/releases)
+
 Given source code, Makefile (or build commands), input files, and answer files then judge the program locally.
 
 ## Workflow
 
 ```
-source code --------+
-                    | [build]
-                    v
-[run] input ---> program ---> output
-                                |
-                                v
-answer -------------------> [compare] ---> correctness, diff result
++-------------------------------------------------------------------------------------+
+| # TA (ta_judge.py):                                                                 |
+|              +------------------------------[unzip]---------------------------+++++ |
+|              | # Student (judge.py):                                          ||||| |
+|              | source code ---+                                               ||||| |
+|              |                | [build]                                       ||||| |
+|              |                v                                               ||||| |
+| hidden inp. --> input ---> program ---> output                                ||||| |
+|              |              [run]         |                                   ||||| |
+|              |                            v                                   ||||| |
+| hidden ans. --> answer -------------> [compare] ---> correctness, diff result ||||| |
+|              +-----------------------------------------|----------------------+++++ |
+|                                                        ||||| [collect]              |
+|                                                        vvvvv                        |
+|                                                     score table                     |
++-------------------------------------------------------------------------------------+
 ```
 
 ## Screenshot
