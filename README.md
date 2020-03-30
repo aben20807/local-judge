@@ -51,7 +51,7 @@ Given source code, Makefile (or build commands), input files, and answer files t
 + python 3.6
 + git 2.17.1
 
-## Examples
+## Examples (with DEMO)
 
 + [student](examples/student/)
 + [TA](examples/ta/)

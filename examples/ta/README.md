@@ -1,3 +1,7 @@
+### DEMO
+
+[![asciicast](https://asciinema.org/a/uIiKTFr2qjlc0egDWqPIrRZan.svg)](https://asciinema.org/a/uIiKTFr2qjlc0egDWqPIrRZan)
+
 ### Examples
 
 ```bash
