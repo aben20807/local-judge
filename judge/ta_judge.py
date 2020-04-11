@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.4.0'
+__version__ = '1.5.0'
 
 from judge import ErrorHandler
 from judge import LocalJudge
@@ -148,6 +148,13 @@ def judge_one_student(lj, student):
     return correctness, report_table
 
 
+def append_log_msg(ori_result):
+    if judge.ERR_HANDLER.cache_log != "":
+        return ori_result + [1, judge.ERR_HANDLER.cache_log]
+    else:
+        return ori_result + [0]
+
+
 def get_args():
     """ Init argparser and return the args from cli.
     """
@@ -204,12 +211,13 @@ if __name__ == '__main__':
         # Init the table with the title
         book = Workbook()
         sheet = book.active
-        title = [t.test_name for t in lj.tests]
+        title = [t.test_name for t in lj.tests] + ['in_log', 'log_msg']
         title.insert(0, "student id")
         sheet.append(title)
 
     for student in students:
         judge.ERR_HANDLER.set_student_id(student.id)
+        judge.ERR_HANDLER.clear_cache_log()
         tj.extract_student(student)
         cd_student_path(student)
         result, report_table = judge_one_student(lj, student)
@@ -222,6 +230,7 @@ if __name__ == '__main__':
             report.table = report_table
             report.print_report()
         else:
+            result = append_log_msg(result)
             sheet.append(result)
 
     if not report_only:

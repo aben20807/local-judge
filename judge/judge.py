@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.9.0'
+__version__ = '1.10.0'
 
 import re
 import logging
@@ -161,18 +161,20 @@ class LocalJudge:
         If the files are identical, the accept will be set to True.
         Another return value is the diff result.
         """
+        if output_filepath == "no_executable_to_run":
+            return False, output_filepath
         if not os.path.isfile(output_filepath):
             ERR_HANDLER.handle(
                 "There was no any output from your program to compare with `" +
                 answer_filepath +
                 "` Please check `your program` first.")
-            return False, "no_executable_to_run"
+            return False, "no_output_file"
         if not os.path.isfile(answer_filepath):
             ERR_HANDLER.handle(
                 "There was no any corresponding answer. " +
                 "Did you set the `AnswerDir` correctly? " +
                 "Please check `judge.conf` first.")
-            return False, "no_executable_to_run"
+            return False, "no_answer_file"
         cmd = "".join(
             [self.diff_command, " ", output_filepath, " ", answer_filepath])
         process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
@@ -244,12 +246,16 @@ class ErrorHandler:
     def __init__(self, exit_or_log, **logging_config):
         self.exit_or_log = exit_or_log
         self.student_id = ""
+        self.cache_log = ""
         if logging_config == {}:
             logging_config['format'] = '%(asctime)-15s [%(levelname)s] %(message)s'
         logging.basicConfig(**logging_config)
 
     def set_student_id(self, student_id):
         self.student_id = student_id
+
+    def clear_cache_log(self):
+        self.cache_log = ""
 
     def handle(self, msg="", exit_or_log=None):
         action = self.exit_or_log
@@ -259,6 +265,7 @@ class ErrorHandler:
             print(self.student_id+" "+msg)
             exit(1)
         elif action == 'log':
+            self.cache_log += (str(msg)+str("\n"))
             logging.error(self.student_id+" "+msg)
         else:
             print("Cannot handle `" + action +
