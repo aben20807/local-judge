@@ -81,7 +81,7 @@ Given source code, Makefile (or build commands), input files, and answer files t
     RunCommand = ./scanner < {input} > {output}
     Inputs = input/*.txt
     TempOutputDir = /tmp/output
-    DiffCommand = git diff --no-index --color-words
+    DiffCommand = git diff --no-index --color-words {answer} {output}
     DeleteTempOutput = true
     AnswerDir = answer
     AnswerExtension = .out

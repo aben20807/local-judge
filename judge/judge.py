@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.10.0'
+__version__ = '1.11.0'
 
 import re
 import logging
@@ -121,7 +121,7 @@ class LocalJudge:
         """ Build the executable which needs to be judged.
         """
         process = subprocess.Popen(
-            self.build_command, stdout=PIPE, stderr=PIPE, shell=True)
+            self.build_command, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
         out, err = process.communicate()
         if process.returncode != 0:
             ERR_HANDLER.handle(
@@ -146,7 +146,7 @@ class LocalJudge:
             input_filepath)+"_"+str(int(time.time()))+".out")
         cmd = re.sub(r'{input}', input_filepath, self.run_command)
         cmd = re.sub(r'{output}', output_filepath, cmd)
-        process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
         out, err = process.communicate()
         if process.returncode != 0:
             ERR_HANDLER.handle(
@@ -175,9 +175,9 @@ class LocalJudge:
                 "Did you set the `AnswerDir` correctly? " +
                 "Please check `judge.conf` first.")
             return False, "no_answer_file"
-        cmd = "".join(
-            [self.diff_command, " ", output_filepath, " ", answer_filepath])
-        process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        cmd = re.sub(r'{output}', output_filepath, self.diff_command)
+        cmd = re.sub(r'{answer}', answer_filepath, cmd)
+        process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
         out, err = process.communicate()
         # If there is difference between two files, the return code is not 0
         if str(err, encoding='utf8').strip() != "":
@@ -314,7 +314,7 @@ def judge_all_tests(config, verbose_level, total_score):
 
 if __name__ == '__main__':
     args = get_args()
-    config = configparser.ConfigParser()
+    config = configparser.RawConfigParser()
     config.read(args.config)
     ERR_HANDLER = ErrorHandler(config['Config']['ExitOrLog'])
 
