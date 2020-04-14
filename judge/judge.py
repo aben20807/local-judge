@@ -38,6 +38,7 @@ from collections import namedtuple
 import configparser
 import argparse
 import sys
+import errno
 if sys.version_info < (3,):
     raise ImportError(
         "You are running local-judge {} on Python 2\n".format(__version__) +
@@ -108,7 +109,7 @@ class LocalJudge:
             # Suppress the error when the directory already exists
             os.makedirs(self.temp_output_dir)
         except OSError as e:
-            if e.errno != os.errno.EEXIST:
+            if e.errno != errno.EEXIST:
                 ERR_HANDLER.handle(str(e))
         # tests contains corresponding input and answer path
         Test = namedtuple('Test', ('test_name', 'input_path', 'answer_path'))
