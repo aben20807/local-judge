@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.11.0'
+__version__ = '1.12.0'
 
 import re
 import logging
@@ -176,7 +176,10 @@ class LocalJudge:
                 "Did you set the `AnswerDir` correctly? " +
                 "Please check `judge.conf` first.")
             return False, "no_answer_file"
-        cmd = re.sub(r'{output}', output_filepath, self.diff_command)
+        # Sync the file mode
+        cmd = "".join(
+            ["chmod --reference={answer} {output} && ", self.diff_command])
+        cmd = re.sub(r'{output}', output_filepath, cmd)
         cmd = re.sub(r'{answer}', answer_filepath, cmd)
         process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
         out, err = process.communicate()
