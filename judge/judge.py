@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.13.0'
+__version__ = '1.13.1'
 
 import re
 import logging
@@ -195,7 +195,7 @@ class LocalJudge:
         if self.delete_temp_output == "true":
             os.remove(output_filepath)
         accept = process.returncode == 0
-        return accept, str(out, encoding='utf8')
+        return accept, str(out, encoding='utf8', errors='ignore')
 
 
 class Report:

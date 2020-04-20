@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.5.0'
+__version__ = '1.5.1'
 
 from judge import ErrorHandler
 from judge import LocalJudge
@@ -140,8 +140,8 @@ def judge_one_student(lj, student):
     report_table = []
     correctness.append(student.id)
     for test in lj.tests:
-        output = lj.run(test.input_path)
-        accept, diff = lj.compare(output, test.answer_path)
+        output = lj.run(test.input_filepath)
+        accept, diff = lj.compare(output, test.answer_filepath)
         report_table.append(
             {'test': test.test_name, 'accept': accept, 'diff': diff})
         correctness.append(1 if accept else 0)
