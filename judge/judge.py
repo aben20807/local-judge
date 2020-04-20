@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.12.0'
+__version__ = '1.13.0'
 
 import re
 import logging
@@ -39,6 +39,8 @@ import configparser
 import argparse
 import sys
 import errno
+from shutil import copyfile
+from shutil import copymode
 if sys.version_info < (3,):
     raise ImportError(
         "You are running local-judge {} on Python 2\n".format(__version__) +
@@ -112,7 +114,7 @@ class LocalJudge:
             if e.errno != errno.EEXIST:
                 ERR_HANDLER.handle(str(e))
         # tests contains corresponding input and answer path
-        Test = namedtuple('Test', ('test_name', 'input_path', 'answer_path'))
+        Test = namedtuple('Test', ('test_name', 'input_filepath', 'answer_filepath'))
         self.tests = [
             Test(get_filename(path), path,
                  expand_path(self._ans_dir, get_filename(path), self._ans_ext)) for path in self._inputs]
@@ -135,7 +137,7 @@ class LocalJudge:
                 "executable `"+self.executable+"` not found." +
                 " Please check `Makefile` first.")
 
-    def run(self, input_filepath):
+    def run(self, input_filepath, with_timestamp=True):
         """ Run the executable with input.
 
         The output will be temporarily placed in specific location,
@@ -143,8 +145,12 @@ class LocalJudge:
         """
         if not os.path.isfile(self.executable):
             return "no_executable_to_run"
-        output_filepath = os.path.join(self.temp_output_dir, get_filename(
-            input_filepath)+"_"+str(int(time.time()))+".out")
+        output_filepath = os.path.join(
+                self.temp_output_dir,
+                get_filename(input_filepath))
+        if with_timestamp:
+            output_filepath += "_"+str(int(time.time()))
+        output_filepath += self._ans_ext
         cmd = re.sub(r'{input}', input_filepath, self.run_command)
         cmd = re.sub(r'{output}', output_filepath, cmd)
         process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
@@ -177,9 +183,8 @@ class LocalJudge:
                 "Please check `judge.conf` first.")
             return False, "no_answer_file"
         # Sync the file mode
-        cmd = "".join(
-            ["chmod --reference={answer} {output} && ", self.diff_command])
-        cmd = re.sub(r'{output}', output_filepath, cmd)
+        copymode(answer_filepath, output_filepath)
+        cmd = re.sub(r'{output}', output_filepath, self.diff_command)
         cmd = re.sub(r'{answer}', answer_filepath, cmd)
         process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
         out, err = process.communicate()
@@ -296,6 +301,11 @@ def get_args():
         help="judge only one input with showing diff result",
         type=str,
         default=None)
+    parser.add_argument(
+        "-o", "--output",
+        help="used to save outputs to a given directory without judgement",
+        type=str,
+        default=None)
     return parser.parse_args()
 
 
@@ -309,11 +319,35 @@ def judge_all_tests(config, verbose_level, total_score):
 
     report = Report(report_verbose=verbose_level, total_score=total_score)
     for test in judge.tests:
-        output = judge.run(test.input_path)
-        accept, diff = judge.compare(output, test.answer_path)
+        output_filepath = judge.run(test.input_filepath)
+        accept, diff = judge.compare(output_filepath, test.answer_filepath)
         report.table.append(
             {'test': test.test_name, 'accept': accept, 'diff': diff})
     return report.print_report()
+
+
+def copy_output_to_dir(config, output_dir, delete_temp_output, ans_ext):
+    """ Copy output files into given directory without judgement.
+
+    Usually used to create answer files or save the outputs for debugging.
+    """
+    try:
+        # Create the temporary directory for output
+        # Suppress the error when the directory already exists
+        os.makedirs(output_dir)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            ERR_HANDLER.handle(str(e))
+    judge = LocalJudge(config)
+    judge.build()
+
+    for test in judge.tests:
+        output_filepath = judge.run(test.input_filepath, with_timestamp=False)
+        copyfile(output_filepath,
+                 expand_path(output_dir, get_filename(output_filepath), ans_ext))
+        if delete_temp_output == "true":
+            os.remove(output_filepath)
+    return 0
 
 
 if __name__ == '__main__':
@@ -321,6 +355,7 @@ if __name__ == '__main__':
     config = configparser.RawConfigParser()
     config.read(args.config)
     ERR_HANDLER = ErrorHandler(config['Config']['ExitOrLog'])
+    returncode = 0
 
     # Check if the config file is empty or not exist.
     if config.sections() == []:
@@ -331,6 +366,13 @@ if __name__ == '__main__':
     if not args.input == None:
         args.verbose = True
         config['Config']['Inputs'] = create_specific_input(args.input, config)
+
+    # Copy output files into given directory without judgement
+    if not args.output == None:
+        copy_output_to_dir(config, args.output,
+                config['Config']['DeleteTempOutput'],
+                config['Config']['AnswerExtension'])
+        exit(returncode)
 
     returncode = judge_all_tests(config, args.verbose, config['Config']['TotalScore'])
     exit(returncode)
