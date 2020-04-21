@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.5.1'
+__version__ = '1.5.2'
 
 from judge import ErrorHandler
 from judge import LocalJudge
@@ -226,7 +226,7 @@ if __name__ == '__main__':
 
         if report_only:
             from judge import Report
-            report = Report(report_verbose=True)
+            report = Report(report_verbose=True, total_score=config['Config']['TotalScore'])
             report.table = report_table
             report.print_report()
         else:

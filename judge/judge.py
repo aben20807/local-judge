@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.13.1'
+__version__ = '1.14.0'
 
 import re
 import logging
@@ -99,6 +99,7 @@ class LocalJudge:
             self.delete_temp_output = self._config['DeleteTempOutput']
             self._ans_dir = self._config['AnswerDir']
             self._ans_ext = self._config['AnswerExtension']
+            self.timeout = self._config['Timeout']
             self._inputs = [
                 os.path.abspath(path) for path in globbing(self._config['Inputs'])]
         except KeyError as e:
@@ -151,11 +152,17 @@ class LocalJudge:
         if with_timestamp:
             output_filepath += "_"+str(int(time.time()))
         output_filepath += self._ans_ext
-        cmd = re.sub(r'{input}', input_filepath, self.run_command)
+        cmd = self.run_command
+        if self.timeout != -1:
+            # self.run_command = "timeout "+str(self.timeout)+" "
+            cmd = "".join(["timeout ", self.timeout, " " , self.run_command])
+        cmd = re.sub(r'{input}', input_filepath, cmd)
         cmd = re.sub(r'{output}', output_filepath, cmd)
         process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
         out, err = process.communicate()
-        if process.returncode != 0:
+        if process.returncode == 124:
+            ERR_HANDLER.handle("TLE")
+        elif process.returncode != 0:
             ERR_HANDLER.handle(
                 "Failed in run stage. " +
                 str(err, encoding='utf8') +
