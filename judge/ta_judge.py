@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.5.2'
+__version__ = '1.6.0'
 
 from judge import ErrorHandler
 from judge import LocalJudge
@@ -33,6 +33,7 @@ import argparse
 import configparser
 import os
 from openpyxl import Workbook
+from openpyxl import load_workbook
 from zipfile import ZipFile
 import rarfile
 from glob import glob as globbing
@@ -53,6 +54,7 @@ class TaJudge:
             self.students_zip_container = self._config['StudentsZipContainer']
             self.students_pattern = self._config['StudentsPattern']
             self.students_extract_dir = self._config['StudentsExtractDir']
+            self.extract_afresh = self._config['ExtractAfresh']
             self.students_zips = globbing(
                 self.students_zip_container+os.sep+"*")
 
@@ -101,6 +103,8 @@ class TaJudge:
     def extract_student(self, student):
         """ Used to extract students' zip file.
         """
+        if self.extract_afresh == "false":
+            return
         try:
             if student.zip_type == 'zip':
                 z = ZipFile(student.zip_path, 'r')
@@ -132,9 +136,13 @@ def find_student_by_id(student_id, students):
     return [s for s in students if s.id == student_id]
 
 
-def judge_one_student(lj, student):
+def judge_one_student(tj, lj, student, here_path):
     """ Judge one student and return the correctness result.
     """
+    judge.ERR_HANDLER.set_student_id(student.id)
+    judge.ERR_HANDLER.clear_cache_log()
+    tj.extract_student(student)
+    cd_student_path(student)
     lj.build()
     correctness = []
     report_table = []
@@ -145,6 +153,8 @@ def judge_one_student(lj, student):
         report_table.append(
             {'test': test.test_name, 'accept': accept, 'diff': diff})
         correctness.append(1 if accept else 0)
+    # Restore the path
+    os.chdir(here_path)
     return correctness, report_table
 
 
@@ -172,6 +182,11 @@ def get_args():
     parser.add_argument(
         "-s", "--student",
         help="judge only one student",
+        type=str,
+        default=None)
+    parser.add_argument(
+        "-u", "--update",
+        help="update specific student's score by rejudgement",
         type=str,
         default=None)
     return parser.parse_args()
@@ -202,12 +217,41 @@ if __name__ == '__main__':
     here_path = os.getcwd()
     students = tj.students
 
+
     if not args.student == None:
-        # Assign specific student for this judgement
-        report_only = True
+        # Assign specific student for this judgement and report to screen
+        tj.extract_afresh = "false"
         students = find_student_by_id(args.student, tj.students)
+        for student in students:
+            result, report_table = judge_one_student(tj, lj, student, here_path)
+
+        from judge import Report
+        report = Report(report_verbose=True, total_score=config['Config']['TotalScore'])
+        report.table = report_table
+        report.print_report()
+        exit(0)
+
+    elif not args.update == None:
+        # Update one student's judge result
+        tj.extract_afresh = "false"
+        students = find_student_by_id(args.update, tj.students)
+        for student in students:
+            result, report_table = judge_one_student(tj, lj, student, here_path)
+        # Load existing table
+        book = load_workbook(ta_config['TaConfig']['ScoreOutput'])
+        sheet = book.active
+        for row in sheet.rows:
+            if row[0].value == args.update:
+                for cell in row:
+                    if sheet.cell(row=1, column=cell.column).value == "in_log":
+                        continue
+                    if cell.column-1 >= len(result):
+                        break
+                    cell.value = result[cell.column-1]
+                break
+
     else:
-        report_only = False
+        # Judge all students
         # Init the table with the title
         book = Workbook()
         sheet = book.active
@@ -215,24 +259,10 @@ if __name__ == '__main__':
         title.insert(0, "student id")
         sheet.append(title)
 
-    for student in students:
-        judge.ERR_HANDLER.set_student_id(student.id)
-        judge.ERR_HANDLER.clear_cache_log()
-        tj.extract_student(student)
-        cd_student_path(student)
-        result, report_table = judge_one_student(lj, student)
-        # Restore the path
-        os.chdir(here_path)
-
-        if report_only:
-            from judge import Report
-            report = Report(report_verbose=True, total_score=config['Config']['TotalScore'])
-            report.table = report_table
-            report.print_report()
-        else:
+        for student in students:
+            result, report_table = judge_one_student(tj, lj, student, here_path)
             result = append_log_msg(result)
             sheet.append(result)
 
-    if not report_only:
-        book.save(ta_config['TaConfig']['ScoreOutput'])
+    book.save(ta_config['TaConfig']['ScoreOutput'])
     print("Finished")
