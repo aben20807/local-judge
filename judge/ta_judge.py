@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.6.0'
+__version__ = '1.7.0'
 
 from judge import ErrorHandler
 from judge import LocalJudge
@@ -53,6 +53,7 @@ class TaJudge:
             self._config = ta_config['TaConfig']
             self.students_zip_container = self._config['StudentsZipContainer']
             self.students_pattern = self._config['StudentsPattern']
+            self.update_student_pattern = self._config['UpdateStudentPattern']
             self.students_extract_dir = self._config['StudentsExtractDir']
             self.extract_afresh = self._config['ExtractAfresh']
             self.students_zips = globbing(
@@ -136,17 +137,17 @@ def find_student_by_id(student_id, students):
     return [s for s in students if s.id == student_id]
 
 
-def judge_one_student(tj, lj, student, here_path):
+def judge_one_student(tj, lj, student):
     """ Judge one student and return the correctness result.
     """
     judge.ERR_HANDLER.set_student_id(student.id)
     judge.ERR_HANDLER.clear_cache_log()
+    here_path = os.getcwd()
     tj.extract_student(student)
     cd_student_path(student)
     lj.build()
     correctness = []
     report_table = []
-    correctness.append(student.id)
     for test in lj.tests:
         output = lj.run(test.input_filepath)
         accept, diff = lj.compare(output, test.answer_filepath)
@@ -214,16 +215,14 @@ if __name__ == '__main__':
     tj = TaJudge(ta_config)
     lj = LocalJudge(config)
 
-    here_path = os.getcwd()
-    students = tj.students
-
-
     if not args.student == None:
         # Assign specific student for this judgement and report to screen
+        this_student_id = args.student
         tj.extract_afresh = "false"
-        students = find_student_by_id(args.student, tj.students)
-        for student in students:
-            result, report_table = judge_one_student(tj, lj, student, here_path)
+        Student = namedtuple('Student', ('id', 'zip_type', 'zip_path', 'extract_path'))
+        extract_path = re.sub(r'{student_id}', this_student_id, tj.update_student_pattern)
+        student = Student(this_student_id, "none", "none", os.path.abspath(tj.students_extract_dir+os.sep+extract_path))
+        result, report_table = judge_one_student(tj, lj, student)
 
         from judge import Report
         report = Report(report_verbose=True, total_score=config['Config']['TotalScore'])
@@ -233,36 +232,56 @@ if __name__ == '__main__':
 
     elif not args.update == None:
         # Update one student's judge result
+        this_student_id = args.update
         tj.extract_afresh = "false"
-        students = find_student_by_id(args.update, tj.students)
-        for student in students:
-            result, report_table = judge_one_student(tj, lj, student, here_path)
+        Student = namedtuple('Student', ('id', 'zip_type', 'zip_path', 'extract_path'))
+        extract_path = re.sub(r'{student_id}', this_student_id, tj.update_student_pattern)
+        student = Student(this_student_id, "none", "none", os.path.abspath(tj.students_extract_dir+os.sep+extract_path))
+        result, report_table = judge_one_student(tj, lj, student)
         # Load existing table
         book = load_workbook(ta_config['TaConfig']['ScoreOutput'])
         sheet = book.active
         for row in sheet.rows:
-            if row[0].value == args.update:
+            if row[1].value == this_student_id:
                 for cell in row:
-                    if sheet.cell(row=1, column=cell.column).value == "in_log":
+                    if sheet.cell(row=1, column=cell.column).value in ['name', 'student_id', 'in_log', 'log_msg']:
                         continue
-                    if cell.column-1 >= len(result):
+                    if cell.column-3 >= len(result):
                         break
-                    cell.value = result[cell.column-1]
+                    cell.value = result[cell.column-3]
                 break
 
     else:
         # Judge all students
         # Init the table with the title
-        book = Workbook()
+        book = load_workbook(ta_config['TaConfig']['StudentList'])
         sheet = book.active
-        title = [t.test_name for t in lj.tests] + ['in_log', 'log_msg']
-        title.insert(0, "student id")
-        sheet.append(title)
+        new_title = ['name', 'student_id'] + [t.test_name for t in lj.tests] + ['in_log', 'log_msg']
+        for idx, val in enumerate(new_title):
+            sheet.cell(row=1, column=idx+1).value = val
 
+        # Test phase
+        students = tj.students
+        all_student_results = {}
         for student in students:
-            result, report_table = judge_one_student(tj, lj, student, here_path)
+            result, report_table = judge_one_student(tj, lj, student)
             result = append_log_msg(result)
-            sheet.append(result)
+            all_student_results[student.id] = result
+            # sheet.append(result)
+
+        # Save result to excel
+        for row in list(sheet.rows)[1:]:
+            # Skip title row so use [1:]
+
+            # row[0] are students' name, row[1] are IDs
+            this_student_id = row[1].value
+
+            if not this_student_id in all_student_results:
+                # Skip if the student not submit yet
+                continue
+            this_student_result = all_student_results[this_student_id]
+            for idx, test_result in enumerate(this_student_result):
+                sheet.cell(row=row[1].row, column=idx+3).value = test_result
 
     book.save(ta_config['TaConfig']['ScoreOutput'])
     print("Finished")
