@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.7.0'
+__version__ = '1.8.0'
 
 from judge import ErrorHandler
 from judge import LocalJudge
@@ -50,7 +50,7 @@ if sys.version_info < (3,):
 class TaJudge:
     def __init__(self, ta_config):
         try:
-            self._config = ta_config['TaConfig']
+            self._config = ta_config
             self.students_zip_container = self._config['StudentsZipContainer']
             self.students_pattern = self._config['StudentsPattern']
             self.update_student_pattern = self._config['UpdateStudentPattern']
@@ -161,6 +161,8 @@ def judge_one_student(tj, lj, student):
 
 def append_log_msg(ori_result):
     if judge.ERR_HANDLER.cache_log != "":
+        if len(judge.ERR_HANDLER.cache_log) > 500:
+            judge.ERR_HANDLER.cache_log = judge.ERR_HANDLER.cache_log[:500]
         return ori_result + [1, judge.ERR_HANDLER.cache_log]
     else:
         return ori_result + [0]
@@ -195,9 +197,9 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    config = configparser.ConfigParser()
+    # config = configparser.ConfigParser()
     ta_config = configparser.ConfigParser()
-    config.read(args.config)
+    # config.read(args.config)
     ta_config.read(args.ta_config)
 
     logging_config = {
@@ -207,13 +209,12 @@ if __name__ == '__main__':
     judge.ERR_HANDLER = ErrorHandler('log', **logging_config)
 
     # Check if the config file is empty or not exist.
-    if config.sections() == [] or ta_config.sections() == []:
+    if ta_config.sections() == []:
         print("[ERROR] Failed in config stage.")
-        raise FileNotFoundError(
-            args.config if config.sections() == [] else args.ta_config)
+        raise FileNotFoundError(args.ta_config)
 
-    tj = TaJudge(ta_config)
-    lj = LocalJudge(config)
+    tj = TaJudge(ta_config['TaConfig'])
+    lj = LocalJudge(ta_config['Config'])
 
     if not args.student == None:
         # Assign specific student for this judgement and report to screen
@@ -264,6 +265,7 @@ if __name__ == '__main__':
         students = tj.students
         all_student_results = {}
         for student in students:
+            print(student.id)
             result, report_table = judge_one_student(tj, lj, student)
             result = append_log_msg(result)
             all_student_results[student.id] = result

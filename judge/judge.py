@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.14.0'
+__version__ = '1.15.0'
 
 import re
 import logging
@@ -90,7 +90,7 @@ class LocalJudge:
         """ Set the member from the config file.
         """
         try:
-            self._config = config['Config']
+            self._config = config
             self.build_command = self._config['BuildCommand']
             self.executable = self._config['Executable']
             self.run_command = self._config['RunCommand']
@@ -376,10 +376,10 @@ if __name__ == '__main__':
 
     # Copy output files into given directory without judgement
     if not args.output == None:
-        copy_output_to_dir(config, args.output,
+        copy_output_to_dir(config['Config'], args.output,
                 config['Config']['DeleteTempOutput'],
                 config['Config']['AnswerExtension'])
         exit(returncode)
 
-    returncode = judge_all_tests(config, args.verbose, config['Config']['TotalScore'])
+    returncode = judge_all_tests(config['Config'], args.verbose, config['Config']['TotalScore'])
     exit(returncode)
