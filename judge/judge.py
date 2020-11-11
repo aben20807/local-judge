@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.15.0'
+__version__ = '1.16.0'
 
 import re
 import logging
@@ -124,9 +124,13 @@ class LocalJudge:
     def build(self):
         """ Build the executable which needs to be judged.
         """
-        process = subprocess.Popen(
-            self.build_command, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
-        out, err = process.communicate()
+        try:
+            process = subprocess.Popen(
+                self.build_command, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
+            out, err = process.communicate()
+        except KeyboardInterrupt:
+            process.kill()
+            raise KeyboardInterrupt
         if process.returncode != 0:
             ERR_HANDLER.handle(
                 "Failed in build stage.\n" +
@@ -153,28 +157,34 @@ class LocalJudge:
             output_filepath += "_"+str(int(time.time()))
         output_filepath += self._ans_ext
         cmd = self.run_command
-        if self.timeout != -1:
-            # self.run_command = "timeout "+str(self.timeout)+" "
-            cmd = "".join(["timeout ", self.timeout, " " , self.run_command])
         cmd = re.sub(r'{input}', input_filepath, cmd)
         cmd = re.sub(r'{output}', output_filepath, cmd)
-        process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
-        out, err = process.communicate()
-        if process.returncode == 124:
-            ERR_HANDLER.handle("TLE")
-        elif process.returncode != 0:
+        try:
+            process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
+            out, err = process.communicate(timeout=float(self.timeout))
+        except subprocess.TimeoutExpired:
+            process.kill()
+            ERR_HANDLER.handle(f"TLE at {get_filename(input_filepath)}")
+            process.returncode = 124
+            return process.returncode, output_filepath
+        except KeyboardInterrupt:
+            process.kill()
+            raise KeyboardInterrupt
+        if process.returncode != 0:
             ERR_HANDLER.handle(
                 "Failed in run stage. " +
                 str(err, encoding='utf8') +
                 "Please check `your program` first.")
-        return output_filepath
+        return process.returncode, output_filepath
 
-    def compare(self, output_filepath, answer_filepath):
+    def compare(self, output_filepath, answer_filepath, run_returncode):
         """ Verify the differences between output and answer.
 
         If the files are identical, the accept will be set to True.
         Another return value is the diff result.
         """
+        if run_returncode != 0:
+            return False, ""
         if output_filepath == "no_executable_to_run":
             return False, output_filepath
         if not os.path.isfile(output_filepath):
@@ -193,8 +203,12 @@ class LocalJudge:
         copymode(answer_filepath, output_filepath)
         cmd = re.sub(r'{output}', output_filepath, self.diff_command)
         cmd = re.sub(r'{answer}', answer_filepath, cmd)
-        process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
-        out, err = process.communicate()
+        try:
+            process = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, executable='bash')
+            out, err = process.communicate()
+        except KeyboardInterrupt:
+            process.kill()
+            raise KeyboardInterrupt
         # If there is difference between two files, the return code is not 0
         if str(err, encoding='utf8').strip() != "":
             ERR_HANDLER.handle("Failed in compare stage. " +
@@ -326,8 +340,8 @@ def judge_all_tests(config, verbose_level, total_score):
 
     report = Report(report_verbose=verbose_level, total_score=total_score)
     for test in judge.tests:
-        output_filepath = judge.run(test.input_filepath)
-        accept, diff = judge.compare(output_filepath, test.answer_filepath)
+        returncode, output_filepath = judge.run(test.input_filepath)
+        accept, diff = judge.compare(output_filepath, test.answer_filepath, returncode)
         report.table.append(
             {'test': test.test_name, 'accept': accept, 'diff': diff})
     return report.print_report()
@@ -349,7 +363,7 @@ def copy_output_to_dir(config, output_dir, delete_temp_output, ans_ext):
     judge.build()
 
     for test in judge.tests:
-        output_filepath = judge.run(test.input_filepath, with_timestamp=False)
+        _, output_filepath = judge.run(test.input_filepath, with_timestamp=False)
         copyfile(output_filepath,
                  expand_path(output_dir, get_filename(output_filepath), ans_ext))
         if delete_temp_output == "true":
