@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "1.16.0"
+__version__ = "1.17.0"
 
 import re
 import logging
@@ -129,7 +129,7 @@ class LocalJudge:
         ]
         self.tests.sort(key=lambda t: t.test_name)
 
-    def build(self):
+    def build(self, cwd="./"):
         """Build the executable which needs to be judged."""
         process = subprocess.Popen(
             self.build_command,
@@ -137,6 +137,7 @@ class LocalJudge:
             stderr=PIPE,
             shell=True,
             executable="bash",
+            cwd=cwd,
         )
         try:
             _, err = process.communicate()
@@ -149,7 +150,7 @@ class LocalJudge:
                 + str(err, encoding="utf8")
                 + " Please check `Makefile` or your file architecture first."
             )
-        if not os.path.isfile(self.executable):
+        if not os.path.isfile(cwd + self.executable):
             ERR_HANDLER.handle(
                 "Failed in build stage. "
                 + "executable `"
@@ -158,14 +159,14 @@ class LocalJudge:
                 + " Please check `Makefile` first."
             )
 
-    def run(self, input_filepath, with_timestamp=True):
+    def run(self, input_filepath, with_timestamp=True, cwd="./"):
         """Run the executable with input.
 
         The output will be temporarily placed in specific location,
         and the path will be returned for the validation.
         """
-        if not os.path.isfile(self.executable):
-            return "no_executable_to_run"
+        if not os.path.isfile(cwd + self.executable):
+            return 1, "no_executable_to_run"
         output_filepath = os.path.join(
             self.temp_output_dir, get_filename(input_filepath)
         )
@@ -176,7 +177,7 @@ class LocalJudge:
         cmd = re.sub(r"{input}", input_filepath, cmd)
         cmd = re.sub(r"{output}", output_filepath, cmd)
         process = subprocess.Popen(
-            cmd, stdout=PIPE, stderr=PIPE, shell=True, executable="bash"
+            cmd, stdout=PIPE, stderr=PIPE, shell=True, executable="bash", cwd=cwd
         )
         try:
             _, err = process.communicate(timeout=float(self.timeout))
@@ -196,7 +197,7 @@ class LocalJudge:
             )
         return process.returncode, output_filepath
 
-    def compare(self, output_filepath, answer_filepath, run_returncode):
+    def compare(self, output_filepath, answer_filepath, run_returncode, cwd="./"):
         """Verify the differences between output and answer.
 
         If the files are identical, the accept will be set to True.
@@ -225,10 +226,9 @@ class LocalJudge:
         cmd = re.sub(r"{output}", output_filepath, self.diff_command)
         cmd = re.sub(r"{answer}", answer_filepath, cmd)
         process = subprocess.Popen(
-            cmd, stdout=PIPE, stderr=PIPE, shell=True, executable="bash"
+            cmd, stdout=PIPE, stderr=PIPE, shell=True, executable="bash", cwd=cwd
         )
         try:
-
             out, err = process.communicate()
         except KeyboardInterrupt:
             process.kill()

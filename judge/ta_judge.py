@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "1.10.0"
+__version__ = "1.11.0"
 
 from judge import ErrorHandler
 from judge import LocalJudge
@@ -32,7 +32,6 @@ import judge
 import argparse
 import configparser
 import os
-from openpyxl import Workbook
 from openpyxl import load_workbook
 from zipfile import ZipFile
 import rarfile
@@ -133,14 +132,6 @@ class TaJudge:
             )
 
 
-def cd_student_path(student):
-    """Change directory to student source code."""
-    try:
-        os.chdir(student.extract_path)
-    except FileNotFoundError as e:
-        logging.error(str(student.id) + " " + str(e))
-
-
 def find_student_by_id(student_id, students):
     """Find the student from the students by id."""
     return [s for s in students if s.id == student_id]
@@ -150,19 +141,21 @@ def judge_one_student(tj, lj, student):
     """Judge one student and return the correctness result."""
     judge.ERR_HANDLER.set_student_id(student.id)
     judge.ERR_HANDLER.clear_cache_log()
-    here_path = os.getcwd()
+    student_path = student.extract_path + os.sep
+    if not os.path.isdir(student_path):
+        logging.error(str(student.id) + ": " + str(student_path) + " not found.")
     tj.extract_student(student)
-    cd_student_path(student)
-    lj.build()
+    lj.build(cwd=student_path)
     correctness = []
     report_table = []
     for test in lj.tests:
-        returncode, output = lj.run(test.input_filepath)
-        accept, diff = lj.compare(output, test.answer_filepath, returncode)
+        returncode, output = lj.run(test.input_filepath, cwd=student_path)
+        accept, diff = lj.compare(
+            output, test.answer_filepath, returncode, cwd=student_path
+        )
         report_table.append({"test": test.test_name, "accept": accept, "diff": diff})
         correctness.append(1 if accept else 0)
     # Restore the path
-    os.chdir(here_path)
     return correctness, report_table
 
 
@@ -235,9 +228,7 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
-    # config = configparser.ConfigParser()
     ta_config = configparser.ConfigParser()
-    # config.read(args.config)
     ta_config.read(args.ta_config)
 
     logging_config = {
@@ -278,7 +269,6 @@ if __name__ == "__main__":
         )
         report.table = report_table
         report.print_report()
-        exit(0)
 
     elif not args.update == None:
         # Update one student's judge result
@@ -317,7 +307,6 @@ if __name__ == "__main__":
     else:
         # Test phase
         students = tj.students
-        here_path = os.getcwd()
         all_student_results = {}
         empty_result = [""] * len(lj.tests)
         for student in students:
@@ -337,7 +326,6 @@ if __name__ == "__main__":
                 result = append_log_msg(empty_result)
                 all_student_results[student.id] = result
                 continue
-        os.chdir(here_path)
         write_to_sheet(
             ta_config["TaConfig"]["ScoreOutput"],
             ta_config["TaConfig"]["StudentList"],
