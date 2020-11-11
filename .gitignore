@@ -5,3 +5,4 @@ extract/
 scanner
 *.log
 *.xlsx
+*.swp

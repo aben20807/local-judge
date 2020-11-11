@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = '1.8.0'
+__version__ = '1.9.0'
 
 from judge import ErrorHandler
 from judge import LocalJudge
@@ -167,6 +167,31 @@ def append_log_msg(ori_result):
     else:
         return ori_result + [0]
 
+def write_to_sheet(score_output_path, student_list_path, all_student_results):
+    # Judge all students
+    # Init the table with the title
+    book = load_workbook(student_list_path)
+    sheet = book.active
+    new_title = ['name', 'student_id'] + [t.test_name for t in lj.tests] + ['in_log', 'log_msg']
+    for idx, val in enumerate(new_title):
+        sheet.cell(row=1, column=idx+1).value = val
+
+    # Save result to excel
+    for row in list(sheet.rows)[1:]:
+        # Skip title row so use [1:]
+
+        # row[0] are students' name, row[1] are IDs
+        this_student_id = row[1].value
+
+        if not this_student_id in all_student_results:
+            # Skip if the student not submit yet
+            continue
+        this_student_result = all_student_results[this_student_id]
+        for idx, test_result in enumerate(this_student_result):
+            sheet.cell(row=row[1].row, column=idx+3).value = test_result
+
+    book.save(score_output_path)
+
 
 def get_args():
     """ Init argparser and return the args from cli.
@@ -251,39 +276,31 @@ if __name__ == '__main__':
                         break
                     cell.value = result[cell.column-3]
                 break
+        book.save(ta_config['TaConfig']['ScoreOutput'])
 
     else:
-        # Judge all students
-        # Init the table with the title
-        book = load_workbook(ta_config['TaConfig']['StudentList'])
-        sheet = book.active
-        new_title = ['name', 'student_id'] + [t.test_name for t in lj.tests] + ['in_log', 'log_msg']
-        for idx, val in enumerate(new_title):
-            sheet.cell(row=1, column=idx+1).value = val
-
         # Test phase
         students = tj.students
+        here_path = os.getcwd()
         all_student_results = {}
+        empty_result = [''] * len(lj.tests)
         for student in students:
-            print(student.id)
-            result, report_table = judge_one_student(tj, lj, student)
-            result = append_log_msg(result)
-            all_student_results[student.id] = result
-            # sheet.append(result)
-
-        # Save result to excel
-        for row in list(sheet.rows)[1:]:
-            # Skip title row so use [1:]
-
-            # row[0] are students' name, row[1] are IDs
-            this_student_id = row[1].value
-
-            if not this_student_id in all_student_results:
-                # Skip if the student not submit yet
+            result = None
+            try:
+                print(student.id)
+                result, _ = judge_one_student(tj, lj, student)
+                result = append_log_msg(result)
+                all_student_results[student.id] = result
+            except KeyboardInterrupt:
+                if input("\nReally quit? (y/n)> ").lower().startswith('y'):
+                    # Ref: https://stackoverflow.com/a/18115530
+                    print("Write current score to sheet")
+                    break
+                print(f"Skip one student: {student.id}")
+                judge.ERR_HANDLER.cache_log = "skip"
+                result = append_log_msg(empty_result)
+                all_student_results[student.id] = result
                 continue
-            this_student_result = all_student_results[this_student_id]
-            for idx, test_result in enumerate(this_student_result):
-                sheet.cell(row=row[1].row, column=idx+3).value = test_result
-
-    book.save(ta_config['TaConfig']['ScoreOutput'])
+        os.chdir(here_path)
+        write_to_sheet(ta_config['TaConfig']['ScoreOutput'], ta_config['TaConfig']['StudentList'], all_student_results)
     print("Finished")
