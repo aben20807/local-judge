@@ -24,11 +24,18 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "1.11.0"
+__version__ = "2.0.0"
+
+import sys
+
+if sys.version_info < (3,):
+    raise ImportError(
+        "You are running local-judge {} on Python 2\n".format(__version__)
+        + "Please use Python 3"
+    )
 
 from judge import ErrorHandler
 from judge import LocalJudge
-import judge
 import argparse
 import configparser
 import os
@@ -39,13 +46,12 @@ from glob import glob as globbing
 import re
 from collections import namedtuple
 import logging
-import sys
+import multiprocessing
+from functools import partial
+import signal
+import time
 
-if sys.version_info < (3,):
-    raise ImportError(
-        "You are running local-judge {} on Python 2\n".format(__version__)
-        + "Please use Python 3"
-    )
+Student = namedtuple("Student", ("id", "zip_type", "zip_path", "extract_path"))
 
 
 class TaJudge:
@@ -80,7 +86,7 @@ class TaJudge:
 
         The filename will be split into two parts: student id and the type of zip file (zip or rar).
         """
-        Student = namedtuple("Student", ("id", "zip_type", "zip_path", "extract_path"))
+
         regex = re.compile(self.students_pattern)
         students = []
         for student_zip_path in self.students_zips:
@@ -137,35 +143,47 @@ def find_student_by_id(student_id, students):
     return [s for s in students if s.id == student_id]
 
 
-def judge_one_student(tj, lj, student):
+def append_log_msg(ori_result, log_msg):
+    if log_msg != "":
+        return ori_result + [1, log_msg]
+    else:
+        return ori_result + [0]
+
+
+def judge_one_student(student, all_student_results, tj, lj, skip_report=False):
     """Judge one student and return the correctness result."""
-    judge.ERR_HANDLER.set_student_id(student.id)
-    judge.ERR_HANDLER.clear_cache_log()
+    lj.error_handler.init_student(student.id)
+    print(student.id)
     student_path = student.extract_path + os.sep
     if not os.path.isdir(student_path):
         logging.error(str(student.id) + ": " + str(student_path) + " not found.")
     tj.extract_student(student)
-    lj.build(cwd=student_path)
+    lj.build(student_id=student.id, cwd=student_path)
     correctness = []
     report_table = []
     for test in lj.tests:
-        returncode, output = lj.run(test.input_filepath, cwd=student_path)
-        accept, diff = lj.compare(
-            output, test.answer_filepath, returncode, cwd=student_path
+        returncode, output = lj.run(
+            test.input_filepath, student_id=student.id, cwd=student_path
         )
-        report_table.append({"test": test.test_name, "accept": accept, "diff": diff})
+        accept, diff = lj.compare(
+            output,
+            test.answer_filepath,
+            returncode,
+            student_id=student.id,
+            cwd=student_path,
+        )
+        if not skip_report:
+            report_table.append(
+                {"test": test.test_name, "accept": accept, "diff": diff}
+            )
         correctness.append(1 if accept else 0)
-    # Restore the path
-    return correctness, report_table
-
-
-def append_log_msg(ori_result):
-    if judge.ERR_HANDLER.cache_log != "":
-        if len(judge.ERR_HANDLER.cache_log) > 500:
-            judge.ERR_HANDLER.cache_log = judge.ERR_HANDLER.cache_log[:500]
-        return ori_result + [1, judge.ERR_HANDLER.cache_log]
-    else:
-        return ori_result + [0]
+    result = append_log_msg(correctness, lj.error_handler.database[student.id])
+    all_student_results[student.id] = result
+    return {
+        "student_id": student.id,
+        "result": result,
+        "report_table": report_table,
+    }
 
 
 def write_to_sheet(score_output_path, student_list_path, all_student_results):
@@ -217,6 +235,13 @@ def get_args():
         "-s", "--student", help="judge only one student", type=str, default=None
     )
     parser.add_argument(
+        "-j",
+        "--jobs",
+        help="number of jobs for multiprocessing",
+        type=int,
+        default=multiprocessing.cpu_count(),
+    )
+    parser.add_argument(
         "-u",
         "--update",
         help="update specific student's score by rejudgement",
@@ -224,6 +249,10 @@ def get_args():
         default=None,
     )
     return parser.parse_args()
+
+
+def setup():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 if __name__ == "__main__":
@@ -236,15 +265,16 @@ if __name__ == "__main__":
         "filemode": "a",
         "format": "%(asctime)-15s [%(levelname)s] %(message)s",
     }
-    judge.ERR_HANDLER = ErrorHandler("log", **logging_config)
+    logging.basicConfig(**logging_config)
 
     # Check if the config file is empty or not exist.
     if ta_config.sections() == []:
         print("[ERROR] Failed in config stage.")
         raise FileNotFoundError(args.ta_config)
 
+    eh = ErrorHandler(ta_config["Config"]["ExitOrLog"])
     tj = TaJudge(ta_config["TaConfig"])
-    lj = LocalJudge(ta_config["Config"])
+    lj = LocalJudge(ta_config["Config"], eh)
 
     if not args.student == None:
         # Assign specific student for this judgement and report to screen
@@ -304,26 +334,70 @@ if __name__ == "__main__":
                 break
         book.save(ta_config["TaConfig"]["ScoreOutput"])
 
-    else:
+    elif args.jobs > 1:
         # Test phase
-        students = tj.students
+        empty_result = [""] * len(lj.tests)
+        with multiprocessing.Manager() as manager:
+            all_student_results = manager.dict()
+            pool = multiprocessing.Pool(args.jobs, setup)
+            async_result_list = [
+                {
+                    "student_id": s.id,
+                    "async_result": pool.apply_async(
+                        judge_one_student, (s, all_student_results, tj, lj, True)
+                    ),
+                }
+                for s in tj.students
+            ]
+            for async_result_i in async_result_list:
+                try:
+                    async_result_i["async_result"].get(
+                        float(lj.timeout) * len(lj.tests) * 10
+                    )
+                except multiprocessing.TimeoutError:
+                    print(async_result_i["student_id"], "total TLE skip")
+                    time.sleep(0.5)
+                    lj.error_handler.handle(
+                        "total TLE skip", student_id=async_result_i["student_id"]
+                    )
+                    all_student_results[async_result_i["student_id"]] = append_log_msg(
+                        empty_result,
+                        lj.error_handler.database[async_result_i["student_id"]],
+                    )
+                    continue
+                except KeyboardInterrupt:
+                    pool.terminate()
+                    pool.join()
+                    sys.exit(1)
+
+            pool.close()
+            pool.join()
+
+            write_to_sheet(
+                ta_config["TaConfig"]["ScoreOutput"],
+                ta_config["TaConfig"]["StudentList"],
+                dict(all_student_results),
+            )
+    else:
         all_student_results = {}
         empty_result = [""] * len(lj.tests)
-        for student in students:
-            result = None
+        for student in tj.students:
+            # result_pack = None
             try:
-                print(student.id)
-                result, _ = judge_one_student(tj, lj, student)
-                result = append_log_msg(result)
-                all_student_results[student.id] = result
+                result_pack = judge_one_student(
+                    student, all_student_results, tj, lj, True
+                )
+                all_student_results[student.id] = result_pack["result"]
             except KeyboardInterrupt:
                 if input("\nReally quit? (y/n)> ").lower().startswith("y"):
                     # Ref: https://stackoverflow.com/a/18115530
                     print("Write current score to sheet")
                     break
                 print(f"Skip one student: {student.id}")
-                judge.ERR_HANDLER.cache_log = "skip"
-                result = append_log_msg(empty_result)
+                lj.error_handler.handle("skip", student_id=student.id)
+                result = append_log_msg(
+                    empty_result, lj.error_handler.database[student.id]
+                )
                 all_student_results[student.id] = result
                 continue
         write_to_sheet(

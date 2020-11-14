@@ -24,7 +24,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "1.17.0"
+__version__ = "2.0.0"
+
+import sys
+
+if sys.version_info < (3,):
+    raise ImportError(
+        "You are running local-judge {} on Python 2\n".format(__version__)
+        + "Please use Python 3"
+    )
 
 import re
 import logging
@@ -37,23 +45,14 @@ from itertools import repeat
 from collections import namedtuple
 import configparser
 import argparse
-import sys
 import errno
 from shutil import copyfile
 from shutil import copymode
-
-if sys.version_info < (3,):
-    raise ImportError(
-        "You are running local-judge {} on Python 2\n".format(__version__)
-        + "Please use Python 3"
-    )
 
 
 GREEN = "\033[32m"
 RED = "\033[31m"
 NC = "\033[0m"
-
-ERR_HANDLER = None
 
 
 def get_filename(path):
@@ -82,12 +81,48 @@ def create_specific_input(input_name_or_path, config):
         specific_input = parent + os.sep + input_name_or_path + ext
     specific_input = os.path.abspath(specific_input)
     if not os.path.isfile(specific_input):
-        ERR_HANDLER.handle(specific_input + " not found for specific input.")
+        sys.stderr.write(specific_input + " not found for specific input.")
+        sys.exit(1)
     return specific_input
 
 
+class ErrorHandler:
+    def __init__(self, exit_or_log, **logging_config):
+        self.exit_or_log = exit_or_log
+        self.database = {}
+        if logging_config == {}:
+            logging_config["format"] = "%(asctime)-15s [%(levelname)s] %(message)s"
+        logging.basicConfig(**logging_config)
+
+    def init_student(self, student_id: str):
+        self.database[student_id] = ""
+
+    def handle(self, msg="", exit_or_log=None, student_id="", max_len=500):
+        action = self.exit_or_log
+        if not exit_or_log == None:
+            action = exit_or_log
+
+        if action == "exit":
+            print(student_id + " " + msg)
+            exit(1)
+        elif action == "log":
+            if not student_id in self.database.keys():
+                self.init_student(student_id)
+            self.database[student_id] += str(msg) + str("\n")  # XXX check student_id
+            logging.error(student_id + " " + msg)
+        else:
+            print("Cannot handle `" + action + "`. Check ErrorHandler setting.")
+            exit(1)
+
+        if len(self.database[student_id]) > max_len:
+            self.database[student_id] = self.database[student_id][:max_len]
+
+
+Test = namedtuple("Test", ("test_name", "input_filepath", "answer_filepath"))
+
+
 class LocalJudge:
-    def __init__(self, config):
+    def __init__(self, config, error_handler):
         """Set the member from the config file."""
         try:
             self._config = config
@@ -100,36 +135,39 @@ class LocalJudge:
             self._ans_dir = self._config["AnswerDir"]
             self._ans_ext = self._config["AnswerExtension"]
             self.timeout = self._config["Timeout"]
-            self._inputs = [
-                os.path.abspath(path) for path in globbing(self._config["Inputs"])
-            ]
+            self.error_handler = error_handler
+            # tests contains corresponding input and answer path
+            self.tests = self.inputs_to_tests(self._config["Inputs"])
         except KeyError as e:
             print(
                 str(e)
                 + " field was not found in config file. "
                 + "Please check `judge.conf` first."
             )
-            ERR_HANDLER.handle(exit_or_log="exit")
+            self.error_handler.handle(exit_or_log="exit")
         try:
             # Create the temporary directory for output
             # Suppress the error when the directory already exists
             os.makedirs(self.temp_output_dir)
         except OSError as e:
             if e.errno != errno.EEXIST:
-                ERR_HANDLER.handle(str(e))
-        # tests contains corresponding input and answer path
-        Test = namedtuple("Test", ("test_name", "input_filepath", "answer_filepath"))
-        self.tests = [
+                self.error_handler.handle(str(e))
+
+    def inputs_to_tests(self, inputs):
+        inputs_path = [os.path.abspath(path) for path in globbing(inputs)]
+
+        ret = [
             Test(
                 get_filename(path),
                 path,
                 expand_path(self._ans_dir, get_filename(path), self._ans_ext),
             )
-            for path in self._inputs
+            for path in inputs_path
         ]
-        self.tests.sort(key=lambda t: t.test_name)
+        ret.sort(key=lambda t: t.test_name)
+        return ret
 
-    def build(self, cwd="./"):
+    def build(self, student_id, cwd="./"):
         """Build the executable which needs to be judged."""
         process = subprocess.Popen(
             self.build_command,
@@ -143,23 +181,25 @@ class LocalJudge:
             _, err = process.communicate()
         except KeyboardInterrupt:
             process.kill()
-            raise KeyboardInterrupt
+            raise KeyboardInterrupt from None
         if process.returncode != 0:
-            ERR_HANDLER.handle(
+            self.error_handler.handle(
                 "Failed in build stage.\n"
                 + str(err, encoding="utf8")
-                + " Please check `Makefile` or your file architecture first."
+                + " Please check `Makefile` or your file architecture first.",
+                student_id=student_id,
             )
         if not os.path.isfile(cwd + self.executable):
-            ERR_HANDLER.handle(
+            self.error_handler.handle(
                 "Failed in build stage. "
                 + "executable `"
                 + self.executable
                 + "` not found."
-                + " Please check `Makefile` first."
+                + " Please check `Makefile` first.",
+                student_id=student_id,
             )
 
-    def run(self, input_filepath, with_timestamp=True, cwd="./"):
+    def run(self, input_filepath, student_id, with_timestamp=True, cwd="./"):
         """Run the executable with input.
 
         The output will be temporarily placed in specific location,
@@ -171,7 +211,7 @@ class LocalJudge:
             self.temp_output_dir, get_filename(input_filepath)
         )
         if with_timestamp:
-            output_filepath += "_" + str(int(time.time()))
+            output_filepath += student_id + "_" + str(int(time.time()))
         output_filepath += self._ans_ext
         cmd = self.run_command
         cmd = re.sub(r"{input}", input_filepath, cmd)
@@ -183,21 +223,26 @@ class LocalJudge:
             _, err = process.communicate(timeout=float(self.timeout))
         except subprocess.TimeoutExpired:
             process.kill()
-            ERR_HANDLER.handle(f"TLE at {get_filename(input_filepath)}")
+            self.error_handler.handle(
+                f"TLE at {get_filename(input_filepath)}", student_id=student_id
+            )
             process.returncode = 124
             return process.returncode, output_filepath
         except KeyboardInterrupt:
             process.kill()
-            raise KeyboardInterrupt
+            raise KeyboardInterrupt from None
         if process.returncode != 0:
-            ERR_HANDLER.handle(
+            self.error_handler.handle(
                 "Failed in run stage. "
                 + str(err, encoding="utf8")
-                + "Please check `your program` first."
+                + "Please check `your program` first.",
+                student_id=student_id,
             )
         return process.returncode, output_filepath
 
-    def compare(self, output_filepath, answer_filepath, run_returncode, cwd="./"):
+    def compare(
+        self, output_filepath, answer_filepath, run_returncode, student_id, cwd="./"
+    ):
         """Verify the differences between output and answer.
 
         If the files are identical, the accept will be set to True.
@@ -208,17 +253,19 @@ class LocalJudge:
         if output_filepath == "no_executable_to_run":
             return False, output_filepath
         if not os.path.isfile(output_filepath):
-            ERR_HANDLER.handle(
+            self.error_handler.handle(
                 "There was no any output from your program to compare with `"
                 + answer_filepath
-                + "` Please check `your program` first."
+                + "` Please check `your program` first.",
+                student_id=student_id,
             )
             return False, "no_output_file"
         if not os.path.isfile(answer_filepath):
-            ERR_HANDLER.handle(
+            self.error_handler.handle(
                 "There was no any corresponding answer. "
                 + "Did you set the `AnswerDir` correctly? "
-                + "Please check `judge.conf` first."
+                + "Please check `judge.conf` first.",
+                student_id=student_id,
             )
             return False, "no_answer_file"
         # Sync the file mode
@@ -232,10 +279,13 @@ class LocalJudge:
             out, err = process.communicate()
         except KeyboardInterrupt:
             process.kill()
-            raise KeyboardInterrupt
+            raise KeyboardInterrupt from None
         # If there is difference between two files, the return code is not 0
         if str(err, encoding="utf8").strip() != "":
-            ERR_HANDLER.handle("Failed in compare stage. " + str(err, encoding="utf8"))
+            self.error_handler.handle(
+                "Failed in compare stage. " + str(err, encoding="utf8"),
+                student_id=student_id,
+            )
         if self.delete_temp_output == "true":
             os.remove(output_filepath)
         accept = process.returncode == 0
@@ -255,7 +305,7 @@ class Report:
 
         # Return directly when the test is empty.
         if len(tests) == 0:
-            ERR_HANDLER.handle(
+            sys.stderr.write(
                 "Failed in report stage. "
                 + "There was no any result to report. "
                 + "Did you set the `Inputs` correctly? "
@@ -298,36 +348,6 @@ class Report:
         return returncode
 
 
-class ErrorHandler:
-    def __init__(self, exit_or_log, **logging_config):
-        self.exit_or_log = exit_or_log
-        self.student_id = ""
-        self.cache_log = ""
-        if logging_config == {}:
-            logging_config["format"] = "%(asctime)-15s [%(levelname)s] %(message)s"
-        logging.basicConfig(**logging_config)
-
-    def set_student_id(self, student_id):
-        self.student_id = student_id
-
-    def clear_cache_log(self):
-        self.cache_log = ""
-
-    def handle(self, msg="", exit_or_log=None):
-        action = self.exit_or_log
-        if not exit_or_log == None:
-            action = exit_or_log
-        if action == "exit":
-            print(self.student_id + " " + msg)
-            exit(1)
-        elif action == "log":
-            self.cache_log += str(msg) + str("\n")
-            logging.error(self.student_id + " " + msg)
-        else:
-            print("Cannot handle `" + action + "`. Check ErrorHandler setting.")
-            exit(1)
-
-
 def get_args():
     """Init argparser and return the args from cli."""
     parser = argparse.ArgumentParser()
@@ -358,23 +378,25 @@ def get_args():
     return parser.parse_args()
 
 
-def judge_all_tests(config, verbose_level, total_score):
+def judge_all_tests(judge, verbose_level, total_score):
     """Judge all tests for given program.
 
     If `--input` is set, there is only one input in this judgement.
     """
-    judge = LocalJudge(config)
-    judge.build()
+
+    judge.build(student_id="local")
 
     report = Report(report_verbose=verbose_level, total_score=total_score)
     for test in judge.tests:
-        returncode, output_filepath = judge.run(test.input_filepath)
-        accept, diff = judge.compare(output_filepath, test.answer_filepath, returncode)
+        returncode, output_filepath = judge.run(test.input_filepath, student_id="local")
+        accept, diff = judge.compare(
+            output_filepath, test.answer_filepath, returncode, student_id="local"
+        )
         report.table.append({"test": test.test_name, "accept": accept, "diff": diff})
     return report.print_report()
 
 
-def copy_output_to_dir(config, output_dir, delete_temp_output, ans_ext):
+def copy_output_to_dir(judge, output_dir, delete_temp_output, ans_ext):
     """Copy output files into given directory without judgement.
 
     Usually used to create answer files or save the outputs for debugging.
@@ -385,8 +407,8 @@ def copy_output_to_dir(config, output_dir, delete_temp_output, ans_ext):
         os.makedirs(output_dir)
     except OSError as e:
         if e.errno != errno.EEXIST:
-            ERR_HANDLER.handle(str(e))
-    judge = LocalJudge(config)
+            sys.stderr.write(str(e))
+            sys.exit(1)
     judge.build()
 
     for test in judge.tests:
@@ -404,30 +426,28 @@ if __name__ == "__main__":
     args = get_args()
     config = configparser.RawConfigParser()
     config.read(args.config)
-    ERR_HANDLER = ErrorHandler(config["Config"]["ExitOrLog"])
+    judge = LocalJudge(config["Config"], ErrorHandler(config["Config"]["ExitOrLog"]))
     returncode = 0
 
     # Check if the config file is empty or not exist.
     if config.sections() == []:
         print("Failed in config stage. `" + str(args.config) + "` not found.")
-        ERR_HANDLER.handle(exit_or_log="exit")
+        judge.error_handler.handle(exit_or_log="exit")
 
     # Assign specific input for this judgement
     if not args.input == None:
         args.verbose = True
-        config["Config"]["Inputs"] = create_specific_input(args.input, config)
+        judge.tests = judge.inputs_to_tests(create_specific_input(args.input, config))
 
     # Copy output files into given directory without judgement
     if not args.output == None:
         copy_output_to_dir(
-            config["Config"],
+            judge,
             args.output,
             config["Config"]["DeleteTempOutput"],
             config["Config"]["AnswerExtension"],
         )
         exit(returncode)
 
-    returncode = judge_all_tests(
-        config["Config"], args.verbose, config["Config"]["TotalScore"]
-    )
+    returncode = judge_all_tests(judge, args.verbose, config["Config"]["TotalScore"])
     exit(returncode)

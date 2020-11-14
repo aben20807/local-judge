@@ -44,6 +44,7 @@ Given source code, Makefile (or build commands), input files, and answer files t
   + Support different zip type (`.zip`, `.rar`)
   + When error is occurred, not interrupt or exit but just log it 
   + Output to excel table
+  + Multiprocessing
 
 ## Environment (Recommended)
 
@@ -73,6 +74,7 @@ Given source code, Makefile (or build commands), input files, and answer files t
     + `AnswerExtension`: the extension of the answer files
     + `ExitOrLog`: exit when any error occurred or just log the error
     + `TotalScore`: the total score of the assignment
+    + `Timeout`: execution timeout for each test case
   + Example config file:
     ```conf
     [Config]
@@ -87,6 +89,7 @@ Given source code, Makefile (or build commands), input files, and answer files t
     AnswerExtension = .out
     ExitOrLog = exit
     TotalScore = 100
+    Timeout = 5
     ```
 
 ### Commands
@@ -108,6 +111,9 @@ optional arguments:
                         judge only one input with showing diff result
                         path or test name both work
                         for example: `-i xxxx` or `-i ../input/xxxx.txt`
+  -o OUTPUT, --output OUTPUT
+                        used to save outputs to a given directory without
+                        judgement
 ```
 
 ## Usage (TA)
@@ -115,25 +121,45 @@ optional arguments:
 ### Dependencies
 
 + `judge.py`
-+ `openpyxl`: `pip install openpyxl`
-+ `rarfile`: `pip install rarfile`
++ `openpyxl`: `pip3 install openpyxl`
++ `rarfile`: `pip3 install rarfile`
 
 ### Configuration
 
-+ `judge.conf`: (Same as student)
 + `ta_judge.config`
   + Content:
+    + First part is `judge.conf`
+    + `StudentList`: the execl file which contains student name and id
     + `StudentsZipContainer`: the directory where contains students' submit homeworks
     + `StudentsPattern`: used to match zip files
+    + `UpdateStudentPattern`: used for update score of single student
     + `StudentsExtractDir`: the directory where contains extracted homeworks
     + `ScoreOutput`: the output excel file
+    + `ExtractAfresh`: true: re-extract zipped file for each judge time; false: use pre-extracted files (under `StudentsExtractDir`) to judge
   + Example config file:
       ```conf
+      [Config]
+      BuildCommand = make clean && make
+      Executable = scanner
+      RunCommand = ./scanner < {input} > {output}
+      Inputs = input/*.txt
+      TempOutputDir = /tmp/output
+      DiffCommand = git diff --no-index --color-words {answer} {output}
+      DeleteTempOutput = true
+      AnswerDir = answer
+      AnswerExtension = .out
+      ExitOrLog = exit
+      TotalScore = 100
+      Timeout = 5
+
       [TaConfig]
+      StudentList = student.xlsx
       StudentsZipContainer = ./zip
       StudentsPattern = ((\w*)_HW1)\.(.*)
+      UpdateStudentPattern = Compiler_{student_id}_HW1
       StudentsExtractDir = ./extract
       ScoreOutput = hw1.xlsx
+      ExtractAfresh = true
       ```
 
 ### Commands
@@ -149,4 +175,7 @@ optional arguments:
                         the config file, default: `ta_judge.conf`
   -s STUDENT, --student STUDENT
                         judge only one student
+  -j JOBS, --jobs JOBS  number of jobs for multiprocessing
+  -u UPDATE, --update UPDATE
+                        update specific student's score by rejudgement
 ```
