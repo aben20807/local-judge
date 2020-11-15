@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 
 import sys
 
@@ -37,8 +37,7 @@ if sys.version_info < (3,):
 import re
 import logging
 import time
-from subprocess import PIPE
-import subprocess
+from subprocess import PIPE, Popen, TimeoutExpired, check_output
 import os
 from glob import glob as globbing
 from itertools import repeat
@@ -99,7 +98,7 @@ class ErrorHandler:
 
     def handle(self, msg="", exit_or_log=None, student_id="", max_len=500):
         action = self.exit_or_log
-        if not exit_or_log == None:
+        if not exit_or_log is None:
             action = exit_or_log
 
         if action == "exit":
@@ -167,9 +166,9 @@ class LocalJudge:
         ret.sort(key=lambda t: t.test_name)
         return ret
 
-    def build(self, student_id, cwd="./"):
+    def build(self, student_id="local", cwd="./"):
         """Build the executable which needs to be judged."""
-        process = subprocess.Popen(
+        process = Popen(
             self.build_command,
             stdout=PIPE,
             stderr=PIPE,
@@ -199,7 +198,7 @@ class LocalJudge:
                 student_id=student_id,
             )
 
-    def run(self, input_filepath, student_id, with_timestamp=True, cwd="./"):
+    def run(self, input_filepath, student_id="local", with_timestamp=True, cwd="./"):
         """Run the executable with input.
 
         The output will be temporarily placed in specific location,
@@ -216,12 +215,12 @@ class LocalJudge:
         cmd = self.run_command
         cmd = re.sub(r"{input}", input_filepath, cmd)
         cmd = re.sub(r"{output}", output_filepath, cmd)
-        process = subprocess.Popen(
+        process = Popen(
             cmd, stdout=PIPE, stderr=PIPE, shell=True, executable="bash", cwd=cwd
         )
         try:
             _, err = process.communicate(timeout=float(self.timeout))
-        except subprocess.TimeoutExpired:
+        except TimeoutExpired:
             process.kill()
             self.error_handler.handle(
                 f"TLE at {get_filename(input_filepath)}", student_id=student_id
@@ -241,7 +240,12 @@ class LocalJudge:
         return process.returncode, output_filepath
 
     def compare(
-        self, output_filepath, answer_filepath, run_returncode, student_id, cwd="./"
+        self,
+        output_filepath,
+        answer_filepath,
+        run_returncode,
+        student_id="local",
+        cwd="./",
     ):
         """Verify the differences between output and answer.
 
@@ -272,7 +276,7 @@ class LocalJudge:
         copymode(answer_filepath, output_filepath)
         cmd = re.sub(r"{output}", output_filepath, self.diff_command)
         cmd = re.sub(r"{answer}", answer_filepath, cmd)
-        process = subprocess.Popen(
+        process = Popen(
             cmd, stdout=PIPE, stderr=PIPE, shell=True, executable="bash", cwd=cwd
         )
         try:
@@ -314,7 +318,7 @@ class Report:
             return
 
         # Get the window size of the current terminal.
-        _, columns = subprocess.check_output(["stty", "size"]).split()
+        _, columns = check_output(["stty", "size"]).split()
 
         test_len = max(len(max(tests, key=len)), len("Sample"))
         doubledash = "".join(list(repeat("=", int(columns))))
@@ -378,25 +382,23 @@ def get_args():
     return parser.parse_args()
 
 
-def judge_all_tests(judge, verbose_level, total_score):
+def judge_all_tests(judge: LocalJudge, verbose_level, total_score):
     """Judge all tests for given program.
 
     If `--input` is set, there is only one input in this judgement.
     """
 
-    judge.build(student_id="local")
+    judge.build()
 
     report = Report(report_verbose=verbose_level, total_score=total_score)
     for test in judge.tests:
-        returncode, output_filepath = judge.run(test.input_filepath, student_id="local")
-        accept, diff = judge.compare(
-            output_filepath, test.answer_filepath, returncode, student_id="local"
-        )
+        returncode, output_filepath = judge.run(test.input_filepath)
+        accept, diff = judge.compare(output_filepath, test.answer_filepath, returncode)
         report.table.append({"test": test.test_name, "accept": accept, "diff": diff})
     return report.print_report()
 
 
-def copy_output_to_dir(judge, output_dir, delete_temp_output, ans_ext):
+def copy_output_to_dir(judge: LocalJudge, output_dir, delete_temp_output, ans_ext):
     """Copy output files into given directory without judgement.
 
     Usually used to create answer files or save the outputs for debugging.
@@ -435,12 +437,12 @@ if __name__ == "__main__":
         judge.error_handler.handle(exit_or_log="exit")
 
     # Assign specific input for this judgement
-    if not args.input == None:
+    if not args.input is None:
         args.verbose = True
         judge.tests = judge.inputs_to_tests(create_specific_input(args.input, config))
 
     # Copy output files into given directory without judgement
-    if not args.output == None:
+    if not args.output is None:
         copy_output_to_dir(
             judge,
             args.output,

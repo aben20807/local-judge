@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 
 import sys
 
@@ -47,7 +47,6 @@ import re
 from collections import namedtuple
 import logging
 import multiprocessing
-from functools import partial
 import signal
 import time
 
@@ -150,7 +149,9 @@ def append_log_msg(ori_result, log_msg):
         return ori_result + [0]
 
 
-def judge_one_student(student, all_student_results, tj, lj, skip_report=False):
+def judge_one_student(
+    student, all_student_results, tj: TaJudge, lj: LocalJudge, skip_report=False
+):
     """Judge one student and return the correctness result."""
     lj.error_handler.init_student(student.id)
     print(student.id)
@@ -178,7 +179,8 @@ def judge_one_student(student, all_student_results, tj, lj, skip_report=False):
             )
         correctness.append(1 if accept else 0)
     result = append_log_msg(correctness, lj.error_handler.database[student.id])
-    all_student_results[student.id] = result
+    if not all_student_results is None:
+        all_student_results[student.id] = result
     return {
         "student_id": student.id,
         "result": result,
@@ -235,6 +237,9 @@ def get_args():
         "-s", "--student", help="judge only one student", type=str, default=None
     )
     parser.add_argument(
+        "-v", "--verbose", help="the verbose level for report", type=int, default=0
+    )
+    parser.add_argument(
         "-j",
         "--jobs",
         help="number of jobs for multiprocessing",
@@ -276,11 +281,10 @@ if __name__ == "__main__":
     tj = TaJudge(ta_config["TaConfig"])
     lj = LocalJudge(ta_config["Config"], eh)
 
-    if not args.student == None:
+    if not args.student is None:
         # Assign specific student for this judgement and report to screen
         this_student_id = args.student
         tj.extract_afresh = "false"
-        Student = namedtuple("Student", ("id", "zip_type", "zip_path", "extract_path"))
         extract_path = re.sub(
             r"{student_id}", this_student_id, tj.update_student_pattern
         )
@@ -290,21 +294,21 @@ if __name__ == "__main__":
             "none",
             os.path.abspath(tj.students_extract_dir + os.sep + extract_path),
         )
-        result, report_table = judge_one_student(tj, lj, student)
+        res_dict = judge_one_student(student, None, tj, lj, False)
+        report_table = res_dict["report_table"]
 
         from judge import Report
 
         report = Report(
-            report_verbose=True, total_score=ta_config["Config"]["TotalScore"]
+            report_verbose=args.verbose, total_score=ta_config["Config"]["TotalScore"]
         )
         report.table = report_table
         report.print_report()
 
-    elif not args.update == None:
+    elif not args.update is None:
         # Update one student's judge result
         this_student_id = args.update
         tj.extract_afresh = "false"
-        Student = namedtuple("Student", ("id", "zip_type", "zip_path", "extract_path"))
         extract_path = re.sub(
             r"{student_id}", this_student_id, tj.update_student_pattern
         )
@@ -314,7 +318,9 @@ if __name__ == "__main__":
             "none",
             os.path.abspath(tj.students_extract_dir + os.sep + extract_path),
         )
-        result, report_table = judge_one_student(tj, lj, student)
+        res_dict = judge_one_student(student, None, tj, lj, False)
+        result = res_dict["result"]
+        report_table = res_dict["report_table"]
         # Load existing table
         book = load_workbook(ta_config["TaConfig"]["ScoreOutput"])
         sheet = book.active
