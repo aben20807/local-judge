@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "2.0.1"
+__version__ = "2.1.0"
 
 import sys
 
@@ -42,6 +42,7 @@ import os
 from openpyxl import load_workbook
 from zipfile import ZipFile
 import rarfile
+import tarfile
 from glob import glob as globbing
 import re
 from collections import namedtuple
@@ -119,6 +120,8 @@ class TaJudge:
         try:
             if student.zip_type == "zip":
                 z = ZipFile(student.zip_path, "r")
+            elif student.zip_type == "tar":
+                z = tarfile.open(student.zip_path, "r")
             elif student.zip_type == "rar":
                 z = rarfile.RarFile(student.zip_path)
             else:
@@ -156,29 +159,33 @@ def judge_one_student(
     lj.error_handler.init_student(student.id)
     print(student.id)
     student_path = student.extract_path + os.sep
-    if not os.path.isdir(student_path):
-        logging.error(str(student.id) + ": " + str(student_path) + " not found.")
-    tj.extract_student(student)
-    lj.build(student_id=student.id, cwd=student_path)
-    correctness = []
+    correctness = [0] * len(lj.tests)
     report_table = []
-    for test in lj.tests:
-        returncode, output = lj.run(
-            test.input_filepath, student_id=student.id, cwd=student_path
-        )
-        accept, diff = lj.compare(
-            output,
-            test.answer_filepath,
-            returncode,
+    tj.extract_student(student)
+    if not os.path.isdir(student_path):
+        lj.error_handler.handle(
+            f"File architecture error: {str(student.id)}: {str(student_path)} not found",
             student_id=student.id,
-            cwd=student_path,
         )
-        if not skip_report:
-            report_table.append(
-                {"test": test.test_name, "accept": accept, "diff": diff}
+    else:
+        lj.build(student_id=student.id, cwd=student_path)
+        for i in range(len(lj.tests)):
+            returncode, output = lj.run(
+                lj.tests[i].input_filepath, student_id=student.id, cwd=student_path
             )
-        correctness.append(1 if accept else 0)
-    result = append_log_msg(correctness, lj.error_handler.database[student.id])
+            accept, diff = lj.compare(
+                output,
+                lj.tests[i].answer_filepath,
+                returncode,
+                student_id=student.id,
+                cwd=student_path,
+            )
+            if not skip_report:
+                report_table.append(
+                    {"test": lj.tests[i].test_name, "accept": accept, "diff": diff}
+                )
+            correctness[i] = 1 if accept else 0
+    result = append_log_msg(correctness, lj.error_handler.get_error(student.id))
     if not all_student_results is None:
         all_student_results[student.id] = result
     return {
@@ -188,13 +195,13 @@ def judge_one_student(
     }
 
 
-def write_to_sheet(score_output_path, student_list_path, all_student_results):
+def write_to_sheet(score_output_path, student_list_path, all_student_results, tests):
     # Judge all students
     # Init the table with the title
     book = load_workbook(student_list_path)
     sheet = book.active
     new_title = (
-        ["name", "student_id"] + [t.test_name for t in lj.tests] + ["in_log", "log_msg"]
+        ["name", "student_id"] + [t.test_name for t in tests] + ["in_log", "log_msg"]
     )
     for idx, val in enumerate(new_title):
         sheet.cell(row=1, column=idx + 1).value = val
@@ -206,10 +213,11 @@ def write_to_sheet(score_output_path, student_list_path, all_student_results):
         # row[0] are students' name, row[1] are IDs
         this_student_id = row[1].value
 
-        if not this_student_id in all_student_results:
-            # Skip if the student not submit yet
-            continue
-        this_student_result = all_student_results[this_student_id]
+        this_student_result = [""] * len(tests)
+        if not this_student_id in all_student_results.keys():
+            this_student_result = append_log_msg(this_student_result, "not submit")
+        else:
+            this_student_result = all_student_results[this_student_id]
         for idx, test_result in enumerate(this_student_result):
             sheet.cell(row=row[1].row, column=idx + 3).value = test_result
 
@@ -265,19 +273,19 @@ if __name__ == "__main__":
     ta_config = configparser.ConfigParser()
     ta_config.read(args.ta_config)
 
-    logging_config = {
-        "filename": "ta_judge.log",
-        "filemode": "a",
-        "format": "%(asctime)-15s [%(levelname)s] %(message)s",
-    }
-    logging.basicConfig(**logging_config)
-
     # Check if the config file is empty or not exist.
     if ta_config.sections() == []:
         print("[ERROR] Failed in config stage.")
         raise FileNotFoundError(args.ta_config)
 
-    eh = ErrorHandler(ta_config["Config"]["ExitOrLog"])
+    # logging configuration
+    logging_config = {
+        "filename": "ta_judge.log",
+        "filemode": "a",
+        "format": "%(asctime)-15s [%(levelname)s] %(message)s",
+    }
+
+    eh = ErrorHandler(ta_config["Config"]["ExitOrLog"], **logging_config)
     tj = TaJudge(ta_config["TaConfig"])
     lj = LocalJudge(ta_config["Config"], eh)
 
@@ -366,10 +374,7 @@ if __name__ == "__main__":
                     lj.error_handler.handle(
                         "total TLE skip", student_id=async_result_i["student_id"]
                     )
-                    all_student_results[async_result_i["student_id"]] = append_log_msg(
-                        empty_result,
-                        lj.error_handler.database[async_result_i["student_id"]],
-                    )
+
                     continue
                 except KeyboardInterrupt:
                     pool.terminate()
@@ -383,12 +388,12 @@ if __name__ == "__main__":
                 ta_config["TaConfig"]["ScoreOutput"],
                 ta_config["TaConfig"]["StudentList"],
                 dict(all_student_results),
+                lj.tests,
             )
     else:
         all_student_results = {}
         empty_result = [""] * len(lj.tests)
         for student in tj.students:
-            # result_pack = None
             try:
                 result_pack = judge_one_student(
                     student, all_student_results, tj, lj, True
@@ -402,7 +407,7 @@ if __name__ == "__main__":
                 print(f"Skip one student: {student.id}")
                 lj.error_handler.handle("skip", student_id=student.id)
                 result = append_log_msg(
-                    empty_result, lj.error_handler.database[student.id]
+                    empty_result, lj.error_handler.get_error(student.id)
                 )
                 all_student_results[student.id] = result
                 continue
@@ -410,5 +415,6 @@ if __name__ == "__main__":
             ta_config["TaConfig"]["ScoreOutput"],
             ta_config["TaConfig"]["StudentList"],
             all_student_results,
+            lj.tests,
         )
     print("Finished")

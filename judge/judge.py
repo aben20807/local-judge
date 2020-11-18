@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "2.0.1"
+__version__ = "2.1.0"
 
 import sys
 
@@ -47,6 +47,7 @@ import argparse
 import errno
 from shutil import copyfile
 from shutil import copymode
+import signal
 
 
 GREEN = "\033[32m"
@@ -96,7 +97,12 @@ class ErrorHandler:
     def init_student(self, student_id: str):
         self.database[student_id] = ""
 
-    def handle(self, msg="", exit_or_log=None, student_id="", max_len=500):
+    def get_error(self, student_id):
+        if not student_id in self.database.keys():
+            return ""
+        return self.database[student_id]
+
+    def handle(self, msg="", exit_or_log=None, student_id="", max_len=200):
         action = self.exit_or_log
         if not exit_or_log is None:
             action = exit_or_log
@@ -107,8 +113,10 @@ class ErrorHandler:
         elif action == "log":
             if not student_id in self.database.keys():
                 self.init_student(student_id)
-            self.database[student_id] += str(msg) + str("\n")  # XXX check student_id
-            logging.error(student_id + " " + msg)
+            self.database[student_id] += str(msg) + str("\n")
+            logging.error(
+                student_id + " " + msg[:max_len] if len(msg) > max_len else msg
+            )
         else:
             print("Cannot handle `" + action + "`. Check ErrorHandler setting.")
             exit(1)
@@ -175,11 +183,19 @@ class LocalJudge:
             shell=True,
             executable="bash",
             cwd=cwd,
+            start_new_session=True,
         )
         try:
-            _, err = process.communicate()
+            _, err = process.communicate(timeout=float(self.timeout))
+        except TimeoutExpired:
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            # Ref: https://stackoverflow.com/a/44705997
+            self.error_handler.handle(
+                f"TLE at build stage; kill `{self.build_command}`",
+                student_id=student_id,
+            )
         except KeyboardInterrupt:
-            process.kill()
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             raise KeyboardInterrupt from None
         if process.returncode != 0:
             self.error_handler.handle(
@@ -216,19 +232,27 @@ class LocalJudge:
         cmd = re.sub(r"{input}", input_filepath, cmd)
         cmd = re.sub(r"{output}", output_filepath, cmd)
         process = Popen(
-            cmd, stdout=PIPE, stderr=PIPE, shell=True, executable="bash", cwd=cwd
+            cmd,
+            stdout=PIPE,
+            stderr=PIPE,
+            shell=True,
+            executable="bash",
+            cwd=cwd,
+            start_new_session=True,
         )
         try:
             _, err = process.communicate(timeout=float(self.timeout))
         except TimeoutExpired:
-            process.kill()
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            # Ref: https://stackoverflow.com/a/44705997
             self.error_handler.handle(
-                f"TLE at {get_filename(input_filepath)}", student_id=student_id
+                f"TLE at {get_filename(input_filepath)}; kill `{cmd}`",
+                student_id=student_id,
             )
             process.returncode = 124
             return process.returncode, output_filepath
         except KeyboardInterrupt:
-            process.kill()
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             raise KeyboardInterrupt from None
         if process.returncode != 0:
             self.error_handler.handle(
@@ -277,7 +301,12 @@ class LocalJudge:
         cmd = re.sub(r"{output}", output_filepath, self.diff_command)
         cmd = re.sub(r"{answer}", answer_filepath, cmd)
         process = Popen(
-            cmd, stdout=PIPE, stderr=PIPE, shell=True, executable="bash", cwd=cwd
+            cmd,
+            stdout=PIPE,
+            stderr=PIPE,
+            shell=True,
+            executable="bash",
+            cwd=cwd,
         )
         try:
             out, err = process.communicate()
