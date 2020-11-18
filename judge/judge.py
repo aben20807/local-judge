@@ -176,6 +176,7 @@ class LocalJudge:
 
     def build(self, student_id="local", cwd="./"):
         """Build the executable which needs to be judged."""
+        err = ""
         process = Popen(
             self.build_command,
             stdout=PIPE,
