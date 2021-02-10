@@ -66,4 +66,12 @@ Finished
 
 + excel output
 
+```bash
+$ in2csv hw1.xlsx | column -t -n -s,
+name  student_id  a     b     gg    hide  xxxx   total  in_log  log_msg
+S1    F12345678   True  True  True  True  True   100    False
+OuO3  OU2345679                                  0      True    not submit
+OuO   OU2345678   True  True  True  True  False  90     False
+```
+
 ![](./screenshot.png)

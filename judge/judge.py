@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 import sys
 
@@ -48,6 +48,7 @@ import errno
 from shutil import copyfile
 from shutil import copymode
 import signal
+import json
 
 
 GREEN = "\033[32m"
@@ -142,6 +143,7 @@ class LocalJudge:
             self._ans_dir = self._config["AnswerDir"]
             self._ans_ext = self._config["AnswerExtension"]
             self.timeout = self._config["Timeout"]
+            self.score_dict = json.loads(self._config["ScoreDict"])
             self.error_handler = error_handler
             # tests contains corresponding input and answer path
             self.tests = self.inputs_to_tests(self._config["Inputs"])
@@ -327,10 +329,13 @@ class LocalJudge:
 
 
 class Report:
-    def __init__(self, report_verbose=0, total_score=100):
-        self.total_score = total_score
+    def __init__(self, report_verbose=0, score_dict=None):
+        self.score_dict = score_dict
         self.report_verbose = report_verbose
         self.table = []
+
+    def get_score_by_correct_cnt(self, correct_cnt: int):
+        return int(self.score_dict[str(correct_cnt)])
 
     def print_report(self):
         """Print the report into table view."""
@@ -367,15 +372,14 @@ class Report:
                 print(row["diff"])
         print(doubledash)
         correct_cnt = [row["accept"] for row in self.table].count(True)
-        correct_rate = float(100 * correct_cnt / len(tests))
-        obtained_score = float(self.total_score) * correct_cnt / len(tests)
+        obtained_score = self.get_score_by_correct_cnt(correct_cnt)
+        total_score = int(self.score_dict[str(len(tests))])
         print(
-            "Correct rate: {}%\nObtained/Total scores: {}/{}".format(
-                str(correct_rate), str(obtained_score), self.total_score
-            )
+            f"Correct/Total problems:\t{correct_cnt}/{len(tests)}\n"
+            f"Obtained/Total scores:\t{obtained_score}/{total_score}"
         )
         returncode = 0
-        if obtained_score < float(self.total_score) and int(self.report_verbose) < 1:
+        if obtained_score < total_score and int(self.report_verbose) < 1:
             print("\n[INFO] set `-v 1` to get diff result.")
             print("For example: `python3 judge/judge.py -v 1`")
             returncode = 1
@@ -412,7 +416,7 @@ def get_args():
     return parser.parse_args()
 
 
-def judge_all_tests(judge: LocalJudge, verbose_level, total_score):
+def judge_all_tests(judge: LocalJudge, verbose_level, score_dict):
     """Judge all tests for given program.
 
     If `--input` is set, there is only one input in this judgement.
@@ -420,7 +424,7 @@ def judge_all_tests(judge: LocalJudge, verbose_level, total_score):
 
     judge.build()
 
-    report = Report(report_verbose=verbose_level, total_score=total_score)
+    report = Report(report_verbose=verbose_level, score_dict=score_dict)
     for test in judge.tests:
         returncode, output_filepath = judge.run(test.input_filepath)
         accept, diff = judge.compare(output_filepath, test.answer_filepath, returncode)
@@ -481,5 +485,6 @@ if __name__ == "__main__":
         )
         exit(returncode)
 
-    returncode = judge_all_tests(judge, args.verbose, config["Config"]["TotalScore"])
+    score_dict = json.loads(config["Config"]["ScoreDict"])
+    returncode = judge_all_tests(judge, args.verbose, score_dict)
     exit(returncode)

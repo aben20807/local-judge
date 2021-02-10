@@ -74,7 +74,7 @@ Given source code, Makefile (or build commands), input files, and answer files t
     + `AnswerDir`: the directory where contains the answer files corresponding to the input files
     + `AnswerExtension`: the extension of the answer files
     + `ExitOrLog`: exit when any error occurred or just log the error
-    + `TotalScore`: the total score of the assignment
+    + `ScoreDict`: the dictionary for the mapping of correctness and score
     + `Timeout`: execution timeout for each test case
   + Example config file:
     ```conf
@@ -89,7 +89,7 @@ Given source code, Makefile (or build commands), input files, and answer files t
     AnswerDir = answer
     AnswerExtension = .out
     ExitOrLog = exit
-    TotalScore = 100
+    ScoreDict = {"0":"0","1":"30","2":"60","3":"90","4":"100"}
     Timeout = 5
     ```
 
@@ -150,7 +150,7 @@ optional arguments:
       AnswerDir = answer
       AnswerExtension = .out
       ExitOrLog = exit
-      TotalScore = 100
+      ScoreDict = {"0":"0","1":"30","2":"60","3":"90","4":"100"}
       Timeout = 5
 
       [TaConfig]

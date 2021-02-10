@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 import sys
 
@@ -50,6 +50,8 @@ import logging
 import multiprocessing
 import signal
 import time
+import json
+from judge import Report
 
 Student = namedtuple("Student", ("id", "zip_type", "zip_path", "extract_path"))
 
@@ -160,6 +162,7 @@ def judge_one_student(
     print(student.id)
     student_path = student.extract_path + os.sep
     correctness = [0] * len(lj.tests)
+    correct_cnt = 0
     report_table = []
     tj.extract_student(student)
     if not os.path.isdir(student_path):
@@ -184,7 +187,12 @@ def judge_one_student(
                 report_table.append(
                     {"test": lj.tests[i].test_name, "accept": accept, "diff": diff}
                 )
-            correctness[i] = 1 if accept else 0
+            if accept:
+                correct_cnt += 1
+                correctness[i] = 1
+            else:
+                correctness[i] = 0
+    correctness.append(int(lj.score_dict[str(correct_cnt)]))
     result = append_log_msg(correctness, lj.error_handler.get_error(student.id))
     if not all_student_results is None:
         all_student_results[student.id] = result
@@ -201,7 +209,9 @@ def write_to_sheet(score_output_path, student_list_path, all_student_results, te
     book = load_workbook(student_list_path)
     sheet = book.active
     new_title = (
-        ["name", "student_id"] + [t.test_name for t in tests] + ["in_log", "log_msg"]
+        ["name", "student_id"]
+        + [t.test_name for t in tests]
+        + ["total", "in_log", "log_msg"]
     )
     for idx, val in enumerate(new_title):
         sheet.cell(row=1, column=idx + 1).value = val
@@ -215,11 +225,12 @@ def write_to_sheet(score_output_path, student_list_path, all_student_results, te
 
         this_student_result = [""] * len(tests)
         if not this_student_id in all_student_results.keys():
+            this_student_result.append(0)  # not submit: total score is 0
             this_student_result = append_log_msg(this_student_result, "not submit")
         else:
             this_student_result = all_student_results[this_student_id]
         for idx, test_result in enumerate(this_student_result):
-            sheet.cell(row=row[1].row, column=idx + 3).value = test_result
+            sheet.cell(row=row[1].row, column=idx + 3).value = str(test_result)
 
     book.save(score_output_path)
 
@@ -305,11 +316,7 @@ if __name__ == "__main__":
         res_dict = judge_one_student(student, None, tj, lj, False)
         report_table = res_dict["report_table"]
 
-        from judge import Report
-
-        report = Report(
-            report_verbose=args.verbose, total_score=ta_config["Config"]["TotalScore"]
-        )
+        report = Report(report_verbose=args.verbose, score_dict=lj.score_dict)
         report.table = report_table
         report.print_report()
 
