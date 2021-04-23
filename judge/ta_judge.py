@@ -192,7 +192,9 @@ def judge_one_student(
                 correctness[i] = 1
             else:
                 correctness[i] = 0
-    correctness.append(int(lj.score_dict[str(correct_cnt)]))
+    # Not calcute the total score because there may be some hidden test cases
+    # Use the formula of google sheet or excel to get the total score.
+    # correctness.append(int(lj.score_dict[str(correct_cnt)]))
     result = append_log_msg(correctness, lj.error_handler.get_error(student.id))
     if not all_student_results is None:
         all_student_results[student.id] = result
@@ -209,9 +211,7 @@ def write_to_sheet(score_output_path, student_list_path, all_student_results, te
     book = load_workbook(student_list_path)
     sheet = book.active
     new_title = (
-        ["name", "student_id"]
-        + [t.test_name for t in tests]
-        + ["total", "in_log", "log_msg"]
+        ["name", "student_id"] + [t.test_name for t in tests] + ["in_log", "log_msg"]
     )
     for idx, val in enumerate(new_title):
         sheet.cell(row=1, column=idx + 1).value = val
@@ -225,7 +225,7 @@ def write_to_sheet(score_output_path, student_list_path, all_student_results, te
 
         this_student_result = [""] * len(tests)
         if not this_student_id in all_student_results.keys():
-            this_student_result.append(0)  # not submit: total score is 0
+            # this_student_result.append(0)  # not submit: total score is 0
             this_student_result = append_log_msg(this_student_result, "not submit")
         else:
             this_student_result = all_student_results[this_student_id]
