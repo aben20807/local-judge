@@ -23,8 +23,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+from judge import __version__
 
-__version__ = "2.2.0"
+__version__ = __version__
 
 import sys
 
@@ -50,7 +51,6 @@ import logging
 import multiprocessing
 import signal
 import time
-import json
 from judge import Report
 
 Student = namedtuple("Student", ("id", "zip_type", "zip_path", "extract_path"))
@@ -280,6 +280,7 @@ def setup():
 
 
 if __name__ == "__main__":
+    print(f"local-judge: v{__version__}")
     args = get_args()
     ta_config = configparser.ConfigParser()
     ta_config.read(args.ta_config)

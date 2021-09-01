@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "2.2.0"
+__version__ = "2.2.1"
 
 import sys
 
@@ -371,11 +371,17 @@ class Report:
                 print(dash)
                 print(row["diff"])
         print(doubledash)
-        correct_cnt = [row["accept"] for row in self.table].count(True)
+        # The test which ends with "hide" will not be count to calculate the score.
+        correct_cnt = [
+            row["accept"] for row in self.table if not row["test"].endswith("hide")
+        ].count(True)
         obtained_score = self.get_score_by_correct_cnt(correct_cnt)
-        total_score = int(self.score_dict[str(len(tests))])
+        valid_test_number = len(
+            [test for test in tests if not test.endswith("hide")]
+        )  # not to count hide test case
+        total_score = int(self.score_dict[str(valid_test_number)])
         print(
-            f"Correct/Total problems:\t{correct_cnt}/{len(tests)}\n"
+            f"Correct/Total problems:\t{correct_cnt}/{valid_test_number}\n"
             f"Obtained/Total scores:\t{obtained_score}/{total_score}"
         )
         returncode = 0
@@ -459,6 +465,7 @@ def copy_output_to_dir(judge: LocalJudge, output_dir, delete_temp_output, ans_ex
 
 
 if __name__ == "__main__":
+    print(f"local-judge: v{__version__}")
     args = get_args()
     config = configparser.RawConfigParser()
     config.read(args.config)
