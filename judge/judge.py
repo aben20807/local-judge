@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "2.2.2"
+__version__ = "2.3.0"
 
 import sys
 
@@ -143,7 +143,6 @@ class LocalJudge:
             self._ans_dir = self._config["AnswerDir"]
             self._ans_ext = self._config["AnswerExtension"]
             self.timeout = self._config["Timeout"]
-            self.score_dict = json.loads(self._config["ScoreDict"])
             self.error_handler = error_handler
             # tests contains corresponding input and answer path
             self.tests = self.inputs_to_tests(self._config["Inputs"])
@@ -329,8 +328,9 @@ class LocalJudge:
 
 
 class Report:
-    def __init__(self, report_verbose=0, score_dict=None):
+    def __init__(self, report_verbose=0, score_dict=None, total_score=0):
         self.score_dict = score_dict
+        self.total_score = total_score
         self.report_verbose = report_verbose
         self.table = []
 
@@ -371,15 +371,22 @@ class Report:
                 print(dash)
                 print(row["diff"])
         print(doubledash)
+
         # The test which ends with "hide" will not be count to calculate the score.
         correct_cnt = [
             row["accept"] for row in self.table if not row["test"].endswith("hide")
         ].count(True)
-        obtained_score = self.get_score_by_correct_cnt(correct_cnt)
         valid_test_number = len(
             [test for test in tests if not test.endswith("hide")]
         )  # not to count hide test case
-        total_score = int(self.score_dict[str(valid_test_number)])
+        total_score = 0
+        obtained_score = 0
+        try:  # try to use score_dict first
+            total_score = int(self.score_dict[str(valid_test_number)])
+            obtained_score = self.get_score_by_correct_cnt(correct_cnt)
+        except KeyError:  # if the number of tests out of range, use total_score
+            total_score = self.total_score
+            obtained_score = int(correct_cnt / len(tests) * total_score)
         print(
             f"Correct/Total problems:\t{correct_cnt}/{valid_test_number}\n"
             f"Obtained/Total scores:\t{obtained_score}/{total_score}"
@@ -422,7 +429,7 @@ def get_args():
     return parser.parse_args()
 
 
-def judge_all_tests(judge: LocalJudge, verbose_level, score_dict):
+def judge_all_tests(judge: LocalJudge, verbose_level, score_dict, total_score):
     """Judge all tests for given program.
 
     If `--input` is set, there is only one input in this judgement.
@@ -430,7 +437,9 @@ def judge_all_tests(judge: LocalJudge, verbose_level, score_dict):
 
     judge.build()
 
-    report = Report(report_verbose=verbose_level, score_dict=score_dict)
+    report = Report(
+        report_verbose=verbose_level, score_dict=score_dict, total_score=total_score
+    )
     for test in judge.tests:
         returncode, output_filepath = judge.run(test.input_filepath)
         accept, diff = judge.compare(output_filepath, test.answer_filepath, returncode)
@@ -493,5 +502,7 @@ if __name__ == "__main__":
         exit(returncode)
 
     score_dict = json.loads(config["Config"]["ScoreDict"])
-    returncode = judge_all_tests(judge, args.verbose, score_dict)
+    # total_score will be used when the number of tests out of score_dict
+    total_score = json.loads(config["Config"]["TotalScore"])
+    returncode = judge_all_tests(judge, args.verbose, score_dict, total_score)
     exit(returncode)

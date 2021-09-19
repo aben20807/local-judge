@@ -35,8 +35,6 @@ if sys.version_info < (3,):
         + "Please use Python 3"
     )
 
-from judge import ErrorHandler
-from judge import LocalJudge
 import argparse
 import configparser
 import os
@@ -51,7 +49,6 @@ import logging
 import multiprocessing
 import signal
 import time
-from judge import Report
 
 Student = namedtuple("Student", ("id", "zip_type", "zip_path", "extract_path"))
 
@@ -155,7 +152,7 @@ def append_log_msg(ori_result, log_msg):
 
 
 def judge_one_student(
-    student, all_student_results, tj: TaJudge, lj: LocalJudge, skip_report=False
+    student, all_student_results, tj: TaJudge, lj: judge.LocalJudge, skip_report=False
 ):
     """Judge one student and return the correctness result."""
     lj.error_handler.init_student(student.id)
@@ -297,9 +294,9 @@ if __name__ == "__main__":
         "format": "%(asctime)-15s [%(levelname)s] %(message)s",
     }
 
-    eh = ErrorHandler(ta_config["Config"]["ExitOrLog"], **logging_config)
+    eh = judge.ErrorHandler(ta_config["Config"]["ExitOrLog"], **logging_config)
     tj = TaJudge(ta_config["TaConfig"])
-    lj = LocalJudge(ta_config["Config"], eh)
+    lj = judge.LocalJudge(ta_config["Config"], eh)
 
     if not args.student is None:
         # Assign specific student for this judgement and report to screen
@@ -317,7 +314,7 @@ if __name__ == "__main__":
         res_dict = judge_one_student(student, None, tj, lj, False)
         report_table = res_dict["report_table"]
 
-        report = Report(report_verbose=args.verbose, score_dict=lj.score_dict)
+        report = judge.Report(report_verbose=args.verbose, score_dict=lj.score_dict)
         report.table = report_table
         report.print_report()
 
