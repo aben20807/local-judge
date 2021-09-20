@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-__version__ = "2.3.0"
+from .version import __version__
 
 import sys
 
@@ -142,6 +142,7 @@ class LocalJudge:
             self.delete_temp_output = self._config["DeleteTempOutput"]
             self._ans_dir = self._config["AnswerDir"]
             self._ans_ext = self._config["AnswerExtension"]
+            self.score_dict = self._config["ScoreDict"]
             self.timeout = self._config["Timeout"]
             self.error_handler = error_handler
             # tests contains corresponding input and answer path
@@ -286,14 +287,15 @@ class LocalJudge:
             self.error_handler.handle(
                 "There was no any output from your program to compare with `"
                 + answer_filepath
-                + "` Please check `your program` first.",
+                + "`. Please check `your program` first.",
                 student_id=student_id,
             )
             return False, "no_output_file"
         if not os.path.isfile(answer_filepath):
             self.error_handler.handle(
-                "There was no any corresponding answer. "
-                + "Did you set the `AnswerDir` correctly? "
+                "There was no any corresponding answer `"
+                + answer_filepath
+                + "`. Did you set the `AnswerDir` correctly? "
                 + "Please check `judge.conf` first.",
                 student_id=student_id,
             )
@@ -394,7 +396,7 @@ class Report:
         returncode = 0
         if obtained_score < total_score and int(self.report_verbose) < 1:
             print("\n[INFO] set `-v 1` to get diff result.")
-            print("For example: `python3 judge/judge.py -v 1`")
+            print("For example: `judge -v 1`")
             returncode = 1
         return returncode
 
@@ -473,11 +475,16 @@ def copy_output_to_dir(judge: LocalJudge, output_dir, delete_temp_output, ans_ex
     return 0
 
 
-if __name__ == "__main__":
+def main():
     print(f"local-judge: v{__version__}")
     args = get_args()
+    if not os.path.isfile(args.config):
+        print("Config file `" + args.config + "` not found.")
+        exit(1)
+
     config = configparser.RawConfigParser()
     config.read(args.config)
+
     judge = LocalJudge(config["Config"], ErrorHandler(config["Config"]["ExitOrLog"]))
     returncode = 0
 
@@ -506,3 +513,7 @@ if __name__ == "__main__":
     total_score = json.loads(config["Config"]["TotalScore"])
     returncode = judge_all_tests(judge, args.verbose, score_dict, total_score)
     exit(returncode)
+
+
+if __name__ == "__main__":
+    main()

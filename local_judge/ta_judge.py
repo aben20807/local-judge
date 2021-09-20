@@ -23,9 +23,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
-import judge
 
-__version__ = judge.__version__
+from .version import __version__
 
 import sys
 
@@ -49,6 +48,7 @@ import logging
 import multiprocessing
 import signal
 import time
+from . import judge
 
 Student = namedtuple("Student", ("id", "zip_type", "zip_path", "extract_path"))
 
@@ -276,9 +276,12 @@ def setup():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
-if __name__ == "__main__":
+def main():
     print(f"local-judge: v{__version__}")
     args = get_args()
+    if not os.path.isfile(args.ta_config):
+        print("Config file `" + args.ta_config + "` not found.")
+        exit(1)
     ta_config = configparser.ConfigParser()
     ta_config.read(args.ta_config)
 
@@ -423,3 +426,6 @@ if __name__ == "__main__":
             lj.tests,
         )
     print("Finished")
+
+if __name__ == "__main__":
+    main()

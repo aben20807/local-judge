@@ -7,3 +7,6 @@ scanner
 *.log
 *.xlsx
 *.swp
+dist/
+build/
+*.egg-info/

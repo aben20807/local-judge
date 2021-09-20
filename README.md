@@ -3,6 +3,8 @@
 [![Python version](https://img.shields.io/badge/python-%3E=_3.6-blue.svg)](https://www.python.org/downloads/)
 [![GitHub license](https://img.shields.io/github/license/aben20807/local-judge?color=blue)](LICENSE)
 [![GitHub release](https://img.shields.io/github/release/aben20807/local-judge.svg)](https://github.com/aben20807/local-judge/releases)
+[![PyPI](https://img.shields.io/pypi/v/local-judge?color=blue&style=flat&logo=pypi)](https://pypi.org/project/local-judge/)
+[![Downloads](https://pepy.tech/badge/local-judge)](https://pepy.tech/project/local-judge)
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/aben20807/local-judge.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/aben20807/local-judge/context:python)
 
 Given source code, Makefile (or build commands), input files, and answer files then judge the program locally.
@@ -30,7 +32,7 @@ Given source code, Makefile (or build commands), input files, and answer files t
 
 ## Screenshot
 
-![screenshot](images/screenshot.png)
+![screenshot](https://raw.githubusercontent.com/aben20807/local-judge/master/images/screenshot.png)
 
 ## Features
 
@@ -75,6 +77,7 @@ Given source code, Makefile (or build commands), input files, and answer files t
     + `AnswerExtension`: the extension of the answer files
     + `ExitOrLog`: exit when any error occurred or just log the error
     + `ScoreDict`: the dictionary for the mapping of correctness and score
+    + `TotalScore`: used if the number of tests is more than `ScoreDict`
     + `Timeout`: execution timeout for each test case
   + Example config file:
     ```conf
@@ -90,6 +93,7 @@ Given source code, Makefile (or build commands), input files, and answer files t
     AnswerExtension = .out
     ExitOrLog = exit
     ScoreDict = {"0":"0","1":"30","2":"60","3":"90","4":"100"}
+    TotalScore = 100
     Timeout = 5
     ```
 
@@ -151,6 +155,7 @@ optional arguments:
       AnswerExtension = .out
       ExitOrLog = exit
       ScoreDict = {"0":"0","1":"30","2":"60","3":"90","4":"100"}
+      TotalScore = 100
       Timeout = 5
 
       [TaConfig]
