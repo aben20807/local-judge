@@ -5,8 +5,14 @@
 ### Examples
 
 ```bash
+$ virtualenv -p python3.6 venv
+$ source venv/bin/activate
+$ pip install local-judge
+```
+
+```bash
 $ cd examples/student/wrong/
-$ python3 ../../../judge/judge.py
+$ judge
 =======+=============================================================
 Sample | Accept
 =======+=============================================================
@@ -25,8 +31,7 @@ For example: `python3 judge/judge.py -v 1`
 ```
 
 ```bash
-
-$ python3 ../../../judge/judge.py -v 1
+$ judge -v 1
 =======+=============================================================
 Sample | Accept
 =======+=============================================================
@@ -50,7 +55,7 @@ Total score: 75
 ```
 
 ```bash
-$ python3 ../../../judge/judge.py -i xxxx
+$ judge -i xxxx
 =======+=============================================================
 Sample | Accept
 =======+=============================================================

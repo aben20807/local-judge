@@ -4,9 +4,16 @@
 
 ### Examples
 
+
+```bash
+$ virtualenv -p python3.6 venv
+$ source venv/bin/activate
+$ pip install local-judge[ta]
+```
+
 ```bash
 $ cd examples/ta/
-$ python3 ../../judge/ta_judge.py
+$ ta_judge
 Finished
 
 $ tree .
@@ -38,7 +45,7 @@ $ tree .
 ```
 
 ```bash
-$ python3 ../../judge/ta_judge.py -s OU2345678
+$ ta_judge -s OU2345678
 =======+=============================================================
 Sample | Accept
 =======+=============================================================
