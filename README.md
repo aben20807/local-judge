@@ -1,10 +1,10 @@
 # Local Judge
 
+[![PyPI](https://img.shields.io/pypi/v/local-judge?color=blue&style=flat&logo=pypi)](https://pypi.org/project/local-judge/)
+[![Downloads](https://pepy.tech/badge/local-judge)](https://pepy.tech/project/local-judge)
 [![Python version](https://img.shields.io/badge/python-%3E=_3.6-blue.svg)](https://www.python.org/downloads/)
 [![GitHub license](https://img.shields.io/github/license/aben20807/local-judge?color=blue)](LICENSE)
 [![Coding style](https://img.shields.io/badge/code%20style-black-1183C3.svg)](https://github.com/psf/black)
-[![PyPI](https://img.shields.io/pypi/v/local-judge?color=blue&style=flat&logo=pypi)](https://pypi.org/project/local-judge/)
-[![Downloads](https://pepy.tech/badge/local-judge)](https://pepy.tech/project/local-judge)
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/aben20807/local-judge.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/aben20807/local-judge/context:python)
 
 Given source code, Makefile (or build commands), input files, and answer files then judge the program locally.
@@ -21,11 +21,19 @@ Given source code, Makefile (or build commands), input files, and answer files t
 
 ## Installation
 
-```bash
-$ virtualenv -p python3.6 venv
-$ source venv/bin/activate
-$ pip install local-judge
-```
++ For global usage:
+
+  ```bash
+  $ pip install local-judge
+  ```
+
++ With virtualenv:
+
+  ```bash
+  $ virtualenv -p python3.6 venv
+  $ source venv/bin/activate
+  $ pip install local-judge
+  ```
 
 ## Features
 
@@ -47,17 +55,17 @@ $ pip install local-judge
 
 + Ubuntu 18.04
 + python 3.6
-+ git 2.17.1
++ git 2.17.1 (Our default diff tool for comparing between output and answer is git. Please make sure that you have installed it.)
 
 ## Usage Examples
 
-+ [judge](examples/judge/)
-+ [ta_judge](examples/ta_judge/)
++ [judge](https://github.com/aben20807/local-judge/tree/master/examples/judge/)
++ [ta_judge](https://github.com/aben20807/local-judge/tree/master/examples/ta_judge/)
 
 ## Documentation of Configuration
-### judge [[example]](examples/judge/wrong/judge.conf)
+### judge
 
-+ `judge.conf`: be placed in the root of your program
++ `judge.conf`: be placed in the root of your program [[example]](https://github.com/aben20807/local-judge/tree/master/examples/judge/wrong/judge.conf)
   + `BuildCommand`: how to build the executable
   + `Executable`: the name of the executable
   + `RunCommand`: how to run the executable with input and output
@@ -72,9 +80,9 @@ $ pip install local-judge
   + `TotalScore`: used if the number of tests is more than `ScoreDict`
   + `Timeout`: execution timeout for each test case
 
-### ta_judge [[example]](examples/ta_judge/ta_judge.conf)
+### ta_judge
 
-+ `ta_judge.config`:
++ `ta_judge.config`: [[example]](https://github.com/aben20807/local-judge/tree/master/examples/ta_judge/ta_judge.conf)
   + First part is `judge.conf`
   + `StudentList`: the execl file which contains student name and id
   + `StudentsZipContainer`: the directory where contains students' submit homeworks
@@ -83,3 +91,11 @@ $ pip install local-judge
   + `StudentsExtractDir`: the directory where contains extracted homeworks
   + `ScoreOutput`: the output excel file
   + `ExtractAfresh`: true: re-extract zipped file for each judge time; false: use pre-extracted files (under `StudentsExtractDir`) to judge
+
+## Contributing
+
+Please make sure that you have installed [pre-commit](https://pre-commit.com/) for linting the code with the [black](https://github.com/psf/black) style.
+
+## License
+
+MIT
