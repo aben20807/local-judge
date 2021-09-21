@@ -315,10 +315,9 @@ def main():
             os.path.abspath(tj.students_extract_dir + os.sep + extract_path),
         )
         res_dict = judge_one_student(student, None, tj, lj, False)
-        report_table = res_dict["report_table"]
 
         report = judge.Report(report_verbose=args.verbose, score_dict=lj.score_dict)
-        report.table = report_table
+        report.table = res_dict["report_table"]
         report.print_report()
 
     elif not args.update is None:
@@ -336,7 +335,6 @@ def main():
         )
         res_dict = judge_one_student(student, None, tj, lj, False)
         result = res_dict["result"]
-        report_table = res_dict["report_table"]
         # Load existing table
         book = load_workbook(ta_config["TaConfig"]["ScoreOutput"])
         sheet = book.active
@@ -358,7 +356,6 @@ def main():
 
     elif args.jobs > 1:
         # Test phase
-        empty_result = [""] * len(lj.tests)
         with multiprocessing.Manager() as manager:
             all_student_results = manager.dict()
             pool = multiprocessing.Pool(args.jobs, setup)
@@ -399,6 +396,7 @@ def main():
                 lj.tests,
             )
     else:
+        # Test in one thread
         all_student_results = {}
         empty_result = [""] * len(lj.tests)
         for student in tj.students:

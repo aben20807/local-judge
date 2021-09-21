@@ -1,6 +1,6 @@
-### DEMO
+<!--### DEMO
 
-[![asciicast](https://asciinema.org/a/eAjyt5jgDBUUn2BYvtUJzW4qz.svg)](https://asciinema.org/a/eAjyt5jgDBUUn2BYvtUJzW4qz)
+[![asciicast](https://asciinema.org/a/eAjyt5jgDBUUn2BYvtUJzW4qz.svg)](https://asciinema.org/a/eAjyt5jgDBUUn2BYvtUJzW4qz)-->
 
 ### Examples
 
