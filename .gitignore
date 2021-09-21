@@ -10,3 +10,4 @@ scanner
 dist/
 build/
 *.egg-info/
+*.Identifier
