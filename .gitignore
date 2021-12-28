@@ -1,6 +1,7 @@
 env/
 venv/
 .vscode/
+.vim/
 __pycache__/
 extract/
 scanner

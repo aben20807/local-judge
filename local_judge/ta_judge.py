@@ -55,22 +55,17 @@ Student = namedtuple("Student", ("id", "zip_type", "zip_path", "extract_path"))
 
 class TaJudge:
     def __init__(self, ta_config):
+        self._config = ta_config
         try:
-            self._config = ta_config
             self.students_zip_container = self._config["StudentsZipContainer"]
             self.students_pattern = self._config["StudentsPattern"]
             self.update_student_pattern = self._config["UpdateStudentPattern"]
             self.students_extract_dir = self._config["StudentsExtractDir"]
             self.extract_afresh = self._config["ExtractAfresh"]
-            self.students_zips = globbing(self.students_zip_container + os.sep + "*")
-
-            # Parse the students' id and sort them
-            self.students = self._parse_students()
-            self.students.sort(key=lambda x: x.id)
         except KeyError as e:
             print("[ERROR] " + str(e) + " field was not found in config file.")
             print("Please check `judge.conf` first.")
-            exit(1)
+            sys.exit(1)
         try:
             # Create the temporary directory for output
             # Suppress the error when the directory already exists
@@ -78,7 +73,10 @@ class TaJudge:
         except OSError as e:
             if e.errno != os.errno.EEXIST:
                 print("[ERROR] " + str(e))
-                exit(1)
+                sys.exit(1)
+        self.students_zips = globbing(self.students_zip_container + os.sep + "*")
+        # Parse the students' id and sort them
+        self.students = self._parse_students().sort(key=lambda x: x.id)
 
     def _parse_students(self):
         """Used to parse student by the zip filename.
@@ -281,7 +279,7 @@ def main():
     args = get_args()
     if not os.path.isfile(args.ta_config):
         print("Config file `" + args.ta_config + "` not found.")
-        exit(1)
+        sys.exit(1)
     ta_config = configparser.ConfigParser()
     ta_config.read(args.ta_config)
 

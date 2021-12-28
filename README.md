@@ -6,6 +6,7 @@
 [![GitHub license](https://img.shields.io/github/license/aben20807/local-judge?color=blue)](LICENSE)
 [![Coding style](https://img.shields.io/badge/code%20style-black-1183C3.svg)](https://github.com/psf/black)
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/aben20807/local-judge.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/aben20807/local-judge/context:python)
+[![Maintainability](https://api.codeclimate.com/v1/badges/cb5df372c4368bedf7ac/maintainability)](https://codeclimate.com/github/aben20807/local-judge/maintainability)
 
 Given source code, Makefile (or build commands), input files, and answer files then judge the program locally.
 
@@ -95,6 +96,35 @@ Given source code, Makefile (or build commands), input files, and answer files t
 ## Contributing
 
 Please make sure that you have installed [pre-commit](https://pre-commit.com/) for linting the code with the [black](https://github.com/psf/black) style.
+
+## Development
+
+```bash
+$ virtualenv -p python3.7 venv3.7
+$ source venv3.7/bin/activate
+$ python setup.py develop
+$ pip install -e .
+$ pip list
+Package            Version Location
+------------------ ------- ---------------------------------
+black              21.12b0
+click              8.0.3
+et-xmlfile         1.1.0
+importlib-metadata 4.10.0
+local-judge        2.4.7   /home/ben/pro/selfpro/local-judge
+mypy-extensions    0.4.3
+openpyxl           3.0.9
+pathspec           0.9.0
+pip                21.0.1
+platformdirs       2.4.1
+rarfile            4.0
+setuptools         54.1.1
+tomli              1.2.3
+typed-ast          1.5.1
+typing-extensions  4.0.1
+wheel              0.36.2
+zipp               3.6.0
+```
 
 ## License
 

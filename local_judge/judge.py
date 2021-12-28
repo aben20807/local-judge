@@ -104,13 +104,11 @@ class ErrorHandler:
         return self.database[student_id]
 
     def handle(self, msg="", exit_or_log=None, student_id="", max_len=200):
-        action = self.exit_or_log
-        if not exit_or_log is None:
-            action = exit_or_log
+        action = self.exit_or_log if exit_or_log is None else exit_or_log
 
         if action == "exit":
             print(student_id + " " + msg)
-            exit(1)
+            sys.exit(1)
         elif action == "log":
             if not student_id in self.database.keys():
                 self.init_student(student_id)
@@ -120,7 +118,7 @@ class ErrorHandler:
             )
         else:
             print("Cannot handle `" + action + "`. Check ErrorHandler setting.")
-            exit(1)
+            sys.exit(1)
 
         if len(self.database[student_id]) > max_len:
             self.database[student_id] = self.database[student_id][:max_len]
@@ -132,8 +130,9 @@ Test = namedtuple("Test", ("test_name", "input_filepath", "answer_filepath"))
 class LocalJudge:
     def __init__(self, config, error_handler):
         """Set the member from the config file."""
+        self.error_handler = error_handler
+        self._config = config
         try:
-            self._config = config
             self.build_command = self._config["BuildCommand"]
             self.executable = self._config["Executable"]
             self.run_command = self._config["RunCommand"]
@@ -144,16 +143,15 @@ class LocalJudge:
             self._ans_ext = self._config["AnswerExtension"]
             self.score_dict = self._config["ScoreDict"]
             self.timeout = self._config["Timeout"]
-            self.error_handler = error_handler
             # tests contains corresponding input and answer path
             self.tests = self.inputs_to_tests(self._config["Inputs"])
         except KeyError as e:
-            print(
+            self.error_handler.handle(
                 str(e)
                 + " field was not found in config file. "
-                + "Please check `judge.conf` first."
+                + "Please check `judge.conf` first.",
+                exit_or_log="exit",
             )
-            self.error_handler.handle(exit_or_log="exit")
         try:
             # Create the temporary directory for output
             # Suppress the error when the directory already exists
@@ -202,18 +200,20 @@ class LocalJudge:
             raise KeyboardInterrupt from None
         if process.returncode != 0:
             self.error_handler.handle(
-                "Failed in build stage.\n"
+                "Failed in build stage. Error message:\n\n"
                 + str(err, encoding="utf8")
-                + " Please check `Makefile` or your file architecture first.",
+                + "\n"
+                + "Please check `Makefile`, your file architecture, or your program.",
                 student_id=student_id,
             )
         if not os.path.isfile(cwd + self.executable):
             self.error_handler.handle(
-                "Failed in build stage. "
+                "Failed in build stage. Error message:\n\n"
                 + "executable `"
                 + self.executable
                 + "` not found."
-                + " Please check `Makefile` first.",
+                + "\n"
+                + "Please check `Makefile` first.",
                 student_id=student_id,
             )
 
@@ -259,8 +259,9 @@ class LocalJudge:
             raise KeyboardInterrupt from None
         if process.returncode != 0:
             self.error_handler.handle(
-                "Failed in run stage. "
+                "Failed in run stage. Error message:\n\n"
                 + str(err, encoding="utf8")
+                + "\n"
                 + "Please check `your program` first.",
                 student_id=student_id,
             )
@@ -320,7 +321,8 @@ class LocalJudge:
         # If there is difference between two files, the return code is not 0
         if str(err, encoding="utf8").strip() != "":
             self.error_handler.handle(
-                "Failed in compare stage. " + str(err, encoding="utf8"),
+                "Failed in compare stage. Error message:\n\n"
+                + str(err, encoding="utf8"),
                 student_id=student_id,
             )
         if self.delete_temp_output == "true":
@@ -479,8 +481,8 @@ def main():
     print(f"local-judge: v{__version__}")
     args = get_args()
     if not os.path.isfile(args.config):
-        print("Config file `" + args.config + "` not found.")
-        exit(1)
+        print(f"Config file `{args.config}` not found.")
+        sys.exit(1)
 
     config = configparser.RawConfigParser()
     config.read(args.config)
@@ -490,8 +492,10 @@ def main():
 
     # Check if the config file is empty or not exist.
     if config.sections() == []:
-        print("Failed in config stage. `" + str(args.config) + "` not found.")
-        judge.error_handler.handle(exit_or_log="exit")
+        judge.error_handler.handle(
+            f"Failed in config stage. `{str(args.config)}` not found.",
+            exit_or_log="exit",
+        )
 
     # Assign specific input for this judgement
     if not args.input is None:
