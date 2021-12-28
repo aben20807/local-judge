@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/local-judge?color=blue&style=flat&logo=pypi)](https://pypi.org/project/local-judge/)
 [![Downloads](https://pepy.tech/badge/local-judge)](https://pepy.tech/project/local-judge)
-[![Python version](https://img.shields.io/badge/python-%3E=_3.6-blue.svg)](https://www.python.org/downloads/)
+[![Python version](https://img.shields.io/badge/python-_3.6,_3.7-blue.svg)](https://www.python.org/downloads/)
 [![GitHub license](https://img.shields.io/github/license/aben20807/local-judge?color=blue)](LICENSE)
 [![Coding style](https://img.shields.io/badge/code%20style-black-1183C3.svg)](https://github.com/psf/black)
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/aben20807/local-judge.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/aben20807/local-judge/context:python)
