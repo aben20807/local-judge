@@ -35,7 +35,6 @@ if sys.version_info < (3,):
     )
 
 import re
-import logging
 import time
 from subprocess import PIPE, Popen, TimeoutExpired, check_output
 import os
@@ -50,79 +49,13 @@ from shutil import copymode
 import signal
 import json
 
+from . import utils
+from .error_handler import ErrorHandler
+
 
 GREEN = "\033[32m"
 RED = "\033[31m"
 NC = "\033[0m"
-
-
-def get_filename(path):
-    """Get the filename without extension
-
-    input/a.txt -> a
-    """
-    head, tail = os.path.split(path)
-    return os.path.splitext(tail or os.path.basename(head))[0]
-
-
-def expand_path(dir, filename, extension):
-    """Expand a directory and extension for filename
-
-    a -> answer/a.out
-    """
-    return os.path.abspath(os.path.join(dir, filename + extension))
-
-
-def create_specific_input(input_name_or_path, config):
-    if os.path.isfile(input_name_or_path):
-        specific_input = input_name_or_path
-    else:
-        parent = os.path.split(config["Config"]["Inputs"])[0]
-        ext = os.path.splitext(config["Config"]["Inputs"])[1]
-        specific_input = parent + os.sep + input_name_or_path + ext
-    specific_input = os.path.abspath(specific_input)
-    if not os.path.isfile(specific_input):
-        sys.stderr.write(specific_input + " not found for specific input.")
-        sys.exit(1)
-    return specific_input
-
-
-class ErrorHandler:
-    def __init__(self, exit_or_log, **logging_config):
-        self.exit_or_log = exit_or_log
-        self.database = {}
-        if logging_config == {}:
-            logging_config["format"] = "%(asctime)-15s [%(levelname)s] %(message)s"
-        logging.basicConfig(**logging_config)
-
-    def init_student(self, student_id: str):
-        self.database[student_id] = ""
-
-    def get_error(self, student_id):
-        if not student_id in self.database.keys():
-            return ""
-        return self.database[student_id]
-
-    def handle(self, msg="", exit_or_log=None, student_id="", max_len=200):
-        action = self.exit_or_log if exit_or_log is None else exit_or_log
-
-        if action == "exit":
-            print(student_id + " " + msg)
-            sys.exit(1)
-        elif action == "log":
-            if not student_id in self.database.keys():
-                self.init_student(student_id)
-            self.database[student_id] += str(msg) + str("\n")
-            logging.error(
-                student_id + " " + msg[:max_len] if len(msg) > max_len else msg
-            )
-        else:
-            print("Cannot handle `" + action + "`. Check ErrorHandler setting.")
-            sys.exit(1)
-
-        if len(self.database[student_id]) > max_len:
-            self.database[student_id] = self.database[student_id][:max_len]
-
 
 Test = namedtuple("Test", ("test_name", "input_filepath", "answer_filepath"))
 
@@ -165,9 +98,11 @@ class LocalJudge:
 
         ret = [
             Test(
-                get_filename(path),
+                utils.get_filename(path),
                 path,
-                expand_path(self._ans_dir, get_filename(path), self._ans_ext),
+                utils.expand_path(
+                    self._ans_dir, utils.get_filename(path), self._ans_ext
+                ),
             )
             for path in inputs_path
         ]
@@ -226,7 +161,7 @@ class LocalJudge:
         if not os.path.isfile(cwd + self.executable):
             return 1, "no_executable_to_run"
         output_filepath = os.path.join(
-            self.temp_output_dir, get_filename(input_filepath)
+            self.temp_output_dir, utils.get_filename(input_filepath)
         )
         if with_timestamp:
             output_filepath += student_id + "_" + str(int(time.time()))
@@ -249,7 +184,7 @@ class LocalJudge:
             os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             # Ref: https://stackoverflow.com/a/44705997
             self.error_handler.handle(
-                f"TLE at {get_filename(input_filepath)}; kill `{cmd}`",
+                f"TLE at {utils.get_filename(input_filepath)}; kill `{cmd}`",
                 student_id=student_id,
             )
             process.returncode = 124
@@ -470,7 +405,7 @@ def copy_output_to_dir(judge: LocalJudge, output_dir, delete_temp_output, ans_ex
         _, output_filepath = judge.run(test.input_filepath, with_timestamp=False)
         copyfile(
             output_filepath,
-            expand_path(output_dir, get_filename(output_filepath), ans_ext),
+            utils.expand_path(output_dir, utils.get_filename(output_filepath), ans_ext),
         )
         if delete_temp_output == "true":
             os.remove(output_filepath)
@@ -500,7 +435,9 @@ def main():
     # Assign specific input for this judgement
     if not args.input is None:
         args.verbose = True
-        judge.tests = judge.inputs_to_tests(create_specific_input(args.input, config))
+        judge.tests = judge.inputs_to_tests(
+            utils.create_specific_input(args.input, config)
+        )
 
     # Copy output files into given directory without judgement
     if not args.output is None:
