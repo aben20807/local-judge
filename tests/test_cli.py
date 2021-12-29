@@ -27,7 +27,7 @@ def test_judge_wrong(base_path: Path, monkeypatch: pytest.MonkeyPatch, capfd):
 
 def test_ta_judge(base_path: Path, monkeypatch: pytest.MonkeyPatch, capfd):
     monkeypatch.chdir(base_path / "examples" / "ta_judge")
-    returncode = os.system("ta_judge")
+    returncode = os.system("ta_judge -j 1")
     out, _ = capfd.readouterr()
     assert returncode == 0
     assert "OU2345678" in out

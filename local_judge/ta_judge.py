@@ -300,7 +300,6 @@ def main():
     eh = judge.ErrorHandler(ta_config["Config"]["ExitOrLog"], **logging_config)
     tj = TaJudge(ta_config["TaConfig"])
     lj = judge.LocalJudge(ta_config["Config"], eh)
-    print(tj.students)
 
     if not args.student is None:
         # Assign specific student for this judgement and report to screen
