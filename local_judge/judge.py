@@ -36,7 +36,7 @@ if sys.version_info < (3,):
 
 import re
 import time
-from subprocess import PIPE, Popen, TimeoutExpired, check_output
+from subprocess import PIPE, Popen, TimeoutExpired, check_output, CalledProcessError
 import os
 from glob import glob as globbing
 from itertools import repeat
@@ -44,7 +44,7 @@ from collections import namedtuple
 import configparser
 import argparse
 import errno
-from shutil import copyfile
+from shutil import Error, copyfile
 from shutil import copymode
 import signal
 import json
@@ -292,7 +292,11 @@ class Report:
             return
 
         # Get the window size of the current terminal.
-        _, columns = check_output(["stty", "size"]).split()
+        columns = 100
+        try:
+            _, columns = check_output(["stty", "size"]).split()
+        except CalledProcessError as e:
+            pass  # We cannot get the size of stty during testing.
 
         test_len = max(len(max(tests, key=len)), len("Sample"))
         doubledash = "".join(list(repeat("=", int(columns))))
@@ -386,7 +390,9 @@ def judge_all_tests(judge: LocalJudge, verbose_level, score_dict, total_score):
     return report.print_report()
 
 
-def copy_output_to_dir(judge: LocalJudge, output_dir, delete_temp_output, ans_ext):
+def copy_output_to_dir(
+    judge: LocalJudge, output_dir, delete_temp_output, ans_ext
+) -> int:
     """Copy output files into given directory without judgement.
 
     Usually used to create answer files or save the outputs for debugging.
@@ -398,7 +404,7 @@ def copy_output_to_dir(judge: LocalJudge, output_dir, delete_temp_output, ans_ex
     except OSError as e:
         if e.errno != errno.EEXIST:
             sys.stderr.write(str(e))
-            sys.exit(1)
+            return 1
     judge.build()
 
     for test in judge.tests:
@@ -412,12 +418,12 @@ def copy_output_to_dir(judge: LocalJudge, output_dir, delete_temp_output, ans_ex
     return 0
 
 
-def main():
+def main() -> int:
     print(f"local-judge: v{__version__}")
     args = get_args()
     if not os.path.isfile(args.config):
         print(f"Config file `{args.config}` not found.")
-        sys.exit(1)
+        return 1
 
     config = configparser.RawConfigParser()
     config.read(args.config)
@@ -441,20 +447,21 @@ def main():
 
     # Copy output files into given directory without judgement
     if not args.output is None:
-        copy_output_to_dir(
+        returncode = copy_output_to_dir(
             judge,
             args.output,
             config["Config"]["DeleteTempOutput"],
             config["Config"]["AnswerExtension"],
         )
-        exit(returncode)
+        return returncode
 
     score_dict = json.loads(config["Config"]["ScoreDict"])
     # total_score will be used when the number of tests out of score_dict
     total_score = json.loads(config["Config"]["TotalScore"])
     returncode = judge_all_tests(judge, args.verbose, score_dict, total_score)
-    exit(returncode)
+    return returncode
 
 
 if __name__ == "__main__":
-    main()
+    returncode = main()
+    sys.exit(returncode)
