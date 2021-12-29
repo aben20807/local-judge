@@ -9,7 +9,7 @@ def base_path() -> Path:
     return Path(__file__).parent.parent
 
 
-def test_correct(base_path: Path, monkeypatch: pytest.MonkeyPatch, capfd):
+def test_judge_correct(base_path: Path, monkeypatch: pytest.MonkeyPatch, capfd):
     monkeypatch.chdir(base_path / "examples" / "judge" / "correct")
     returncode = os.system("judge")
     out, _ = capfd.readouterr()
@@ -17,9 +17,19 @@ def test_correct(base_path: Path, monkeypatch: pytest.MonkeyPatch, capfd):
     assert "100/100" in out
 
 
-def test_wrong(base_path: Path, monkeypatch: pytest.MonkeyPatch, capfd):
+def test_judge_wrong(base_path: Path, monkeypatch: pytest.MonkeyPatch, capfd):
     monkeypatch.chdir(base_path / "examples" / "judge" / "wrong")
     returncode = os.system("judge")
     out, _ = capfd.readouterr()
     assert returncode != 0
     assert "90/100" in out
+
+
+def test_ta_judge(base_path: Path, monkeypatch: pytest.MonkeyPatch, capfd):
+    monkeypatch.chdir(base_path / "examples" / "ta_judge")
+    returncode = os.system("ta_judge")
+    out, _ = capfd.readouterr()
+    assert returncode == 0
+    assert "OU2345678" in out
+    assert "F12345678" in out
+    assert "Finished" in out

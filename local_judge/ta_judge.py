@@ -37,6 +37,7 @@ if sys.version_info < (3,):
 import argparse
 import configparser
 import os
+import errno
 from openpyxl import load_workbook
 from zipfile import ZipFile
 import rarfile
@@ -71,12 +72,13 @@ class TaJudge:
             # Suppress the error when the directory already exists
             os.makedirs(self.students_extract_dir)
         except OSError as e:
-            if e.errno != os.errno.EEXIST:
+            if e.errno != errno.EEXIST:
                 print("[ERROR] " + str(e))
                 sys.exit(1)
         self.students_zips = globbing(self.students_zip_container + os.sep + "*")
         # Parse the students' id and sort them
-        self.students = self._parse_students().sort(key=lambda x: x.id)
+        self.students = self._parse_students()
+        self.students.sort(key=lambda x: x.id)
 
     def _parse_students(self):
         """Used to parse student by the zip filename.
@@ -298,6 +300,7 @@ def main():
     eh = judge.ErrorHandler(ta_config["Config"]["ExitOrLog"], **logging_config)
     tj = TaJudge(ta_config["TaConfig"])
     lj = judge.LocalJudge(ta_config["Config"], eh)
+    print(tj.students)
 
     if not args.student is None:
         # Assign specific student for this judgement and report to screen
