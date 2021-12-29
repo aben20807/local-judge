@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/local-judge?color=blue&style=flat&logo=pypi)](https://pypi.org/project/local-judge/)
 [![Downloads](https://pepy.tech/badge/local-judge)](https://pepy.tech/project/local-judge)
-[![Python version](https://img.shields.io/badge/python-_3.6,_3.7-blue.svg)](https://www.python.org/downloads/)
+[![Python version](https://img.shields.io/badge/python-_3.6,_3.7,_3.8,_3.9,_3.10-blue.svg)](https://github.com/aben20807/local-judge/actions/workflows/test_cli.yml)
 [![GitHub license](https://img.shields.io/github/license/aben20807/local-judge?color=blue)](LICENSE)
 [![Coding style](https://img.shields.io/badge/code%20style-black-1183C3.svg)](https://github.com/psf/black)
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/aben20807/local-judge.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/aben20807/local-judge/context:python)
@@ -99,6 +99,7 @@ Please make sure that you have installed [pre-commit](https://pre-commit.com/) f
 
 ## Development
 
+### Environment
 ```bash
 $ virtualenv -p python3.7 venv3.7
 $ source venv3.7/bin/activate
@@ -124,6 +125,11 @@ typed-ast          1.5.1
 typing-extensions  4.0.1
 wheel              0.36.2
 zipp               3.6.0
+```
+
+### Run the test locally
+```bash
+$ python -m pytest tests/test_cli.py
 ```
 
 ## License
