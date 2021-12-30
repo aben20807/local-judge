@@ -66,3 +66,6 @@ def test_ta_judge(base_path: Path, monkeypatch: pytest.MonkeyPatch):
     assert "OU2345678" in out
     assert "F12345678" in out
     assert "Finished" in out
+    with open("ta_judge.log") as f:
+        log = f.read()
+        assert "[ERROR] F87654321 Failed in build stage" in log

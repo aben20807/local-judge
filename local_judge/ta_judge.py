@@ -49,13 +49,17 @@ import logging
 import multiprocessing
 import signal
 import time
-from . import judge
+
+from .judge import LocalJudge
+from .error_handler import ErrorHandler
+from .report import Report
 
 Student = namedtuple("Student", ("id", "zip_type", "zip_path", "extract_path"))
 
 
 class TaJudge:
-    def __init__(self, ta_config):
+    def __init__(self, ta_config, error_handler: ErrorHandler):
+        self.error_handler = error_handler
         self._config = ta_config
         try:
             self.students_zip_container = self._config["StudentsZipContainer"]
@@ -64,17 +68,22 @@ class TaJudge:
             self.students_extract_dir = self._config["StudentsExtractDir"]
             self.extract_afresh = self._config["ExtractAfresh"]
         except KeyError as e:
-            print("[ERROR] " + str(e) + " field was not found in config file.")
-            print("Please check `judge.conf` first.")
-            sys.exit(1)
+            self.error_handler.handle(
+                str(e)
+                + " field was not found in config file. "
+                + "Please check `ta_judge.conf` first.",
+                exit_or_log="exit",
+            )
         try:
             # Create the temporary directory for output
             # Suppress the error when the directory already exists
             os.makedirs(self.students_extract_dir)
         except OSError as e:
             if e.errno != errno.EEXIST:
-                print("[ERROR] " + str(e))
-                sys.exit(1)
+                self.error_handler.handle(
+                    str(e),
+                    exit_or_log="exit",
+                )
         self.students_zips = globbing(self.students_zip_container + os.sep + "*")
         # Parse the students' id and sort them
         self.students = self._parse_students()
@@ -96,20 +105,24 @@ class TaJudge:
                 # group(3): file type (zip or rar)
                 students.append(
                     Student(
-                        match.group(2),
-                        match.group(3),
-                        os.path.abspath(student_zip_path),
+                        match.group(2),  # id
+                        match.group(3),  # zip_type
+                        os.path.abspath(student_zip_path),  # zip_path
                         os.path.abspath(
                             self.students_extract_dir + os.sep + match.group(1)
-                        ),
+                        ),  # extract_path
                     )
                 )
-            except Exception as e:
-                logging.error(
+            except AttributeError:
+                self.error_handler.handle(
                     "Failed in parse stage. `"
                     + str(student_zip_path)
-                    + "` did not match the file rule."
+                    + "` did not match the file rule `"
+                    + str(self.students_pattern)
+                    + "`"
                 )
+            except Exception as e:
+                self.error_handler.handle("Failed in parse stage: " + str(e))
         return students
 
     def extract_student(self, student):
@@ -139,20 +152,26 @@ class TaJudge:
             )
 
 
-def find_student_by_id(student_id, students):
-    """Find the student from the students by id."""
-    return [s for s in students if s.id == student_id]
+def append_log_msg(ori_result, log_msg, in_log=1):
+    """Append the log messages to the row of the student.
 
+    Generally, if the log_msg is not empty, there must be error(s) during the judgement.
+    One case is out of the rule: the student did not submit the homework to our system,
+    where the in_log will be set to 0 and only add the notation about "not submit".
+    To avoid the long error message in the score table, here we filter out the text
+    after "Error message:"
+    """
+    log_msg = re.sub(r"\n", " ", log_msg)
+    log_msg = re.sub(r"Error message:.*$", "", log_msg)
 
-def append_log_msg(ori_result, log_msg):
     if log_msg != "":
-        return ori_result + [1, log_msg]
+        return ori_result + [in_log, log_msg]
     else:
         return ori_result + [0]
 
 
 def judge_one_student(
-    student, all_student_results, tj: TaJudge, lj: judge.LocalJudge, skip_report=False
+    student, all_student_results, tj: TaJudge, lj: LocalJudge, skip_report=False
 ):
     """Judge one student and return the correctness result."""
     lj.error_handler.init_student(student.id)
@@ -191,7 +210,6 @@ def judge_one_student(
                 correctness[i] = 0
     # Not calcute the total score because there may be some hidden test cases
     # Use the formula of google sheet or excel to get the total score.
-    # correctness.append(int(lj.score_dict[str(correct_cnt)]))
     result = append_log_msg(correctness, lj.error_handler.get_error(student.id))
     if not all_student_results is None:
         all_student_results[student.id] = result
@@ -222,8 +240,9 @@ def write_to_sheet(score_output_path, student_list_path, all_student_results, te
 
         this_student_result = [""] * len(tests)
         if not this_student_id in all_student_results.keys():
-            # this_student_result.append(0)  # not submit: total score is 0
-            this_student_result = append_log_msg(this_student_result, "not submit")
+            this_student_result = append_log_msg(
+                this_student_result, "not submit", in_log=0
+            )
         else:
             this_student_result = all_student_results[this_student_id]
         for idx, test_result in enumerate(this_student_result):
@@ -281,7 +300,8 @@ def main():
     args = get_args()
     if not os.path.isfile(args.ta_config):
         print("Config file `" + args.ta_config + "` not found.")
-        sys.exit(1)
+        return 1
+
     ta_config = configparser.ConfigParser()
     ta_config.read(args.ta_config)
 
@@ -297,9 +317,9 @@ def main():
         "format": "%(asctime)-15s [%(levelname)s] %(message)s",
     }
 
-    eh = judge.ErrorHandler(ta_config["Config"]["ExitOrLog"], **logging_config)
-    tj = TaJudge(ta_config["TaConfig"])
-    lj = judge.LocalJudge(ta_config["Config"], eh)
+    eh = ErrorHandler(ta_config["Config"]["ExitOrLog"], **logging_config)
+    tj = TaJudge(ta_config["TaConfig"], eh)
+    lj = LocalJudge(ta_config["Config"], eh)
 
     if not args.student is None:
         # Assign specific student for this judgement and report to screen
@@ -316,7 +336,7 @@ def main():
         )
         res_dict = judge_one_student(student, None, tj, lj, False)
 
-        report = judge.Report(report_verbose=args.verbose, score_dict=lj.score_dict)
+        report = Report(report_verbose=args.verbose, score_dict=lj.score_dict)
         report.table = res_dict["report_table"]
         report.print_report()
 
@@ -384,7 +404,7 @@ def main():
                 except KeyboardInterrupt:
                     pool.terminate()
                     pool.join()
-                    sys.exit(1)
+                    return 1
 
             pool.close()
             pool.join()

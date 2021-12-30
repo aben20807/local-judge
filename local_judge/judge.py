@@ -36,32 +36,27 @@ if sys.version_info < (3,):
 
 import re
 import time
-from subprocess import PIPE, Popen, TimeoutExpired, check_output, CalledProcessError
+from subprocess import PIPE, Popen, TimeoutExpired
 import os
 from glob import glob as globbing
-from itertools import repeat
 from collections import namedtuple
 import configparser
 import argparse
 import errno
-from shutil import Error, copyfile
-from shutil import copymode
+from shutil import copyfile, copymode
 import signal
 import json
 
 from . import utils
 from .error_handler import ErrorHandler
+from .report import Report
 
-
-GREEN = "\033[32m"
-RED = "\033[31m"
-NC = "\033[0m"
 
 Test = namedtuple("Test", ("test_name", "input_filepath", "answer_filepath"))
 
 
 class LocalJudge:
-    def __init__(self, config, error_handler):
+    def __init__(self, config, error_handler: ErrorHandler):
         """Set the member from the config file."""
         self.error_handler = error_handler
         self._config = config
@@ -143,7 +138,7 @@ class LocalJudge:
             )
         if not os.path.isfile(cwd + self.executable):
             self.error_handler.handle(
-                "Failed in build stage. Error message:\n\n"
+                "Failed in build stage. "
                 + "executable `"
                 + self.executable
                 + "` not found."
@@ -266,82 +261,6 @@ class LocalJudge:
         return accept, str(out, encoding="utf8", errors="ignore")
 
 
-class Report:
-    def __init__(self, report_verbose=0, score_dict=None, total_score=0):
-        self.score_dict = score_dict
-        self.total_score = total_score
-        self.report_verbose = report_verbose
-        self.table = []
-
-    def get_score_by_correct_cnt(self, correct_cnt: int):
-        return int(self.score_dict[str(correct_cnt)])
-
-    def print_report(self):
-        """Print the report into table view."""
-        self.table.sort(key=lambda x: x["test"])
-        tests = [x["test"] for x in self.table]
-
-        # Return directly when the test is empty.
-        if len(tests) == 0:
-            sys.stderr.write(
-                "Failed in report stage. "
-                + "There was no any result to report. "
-                + "Did you set the `Inputs` correctly? "
-                + "Please check `judge.conf` first."
-            )
-            return
-
-        # Get the window size of the current terminal.
-        columns = 100
-        try:
-            _, columns = check_output(["stty", "size"]).split()
-        except CalledProcessError as e:
-            pass  # We cannot get the size of stty during testing.
-
-        test_len = max(len(max(tests, key=len)), len("Sample"))
-        doubledash = "".join(list(repeat("=", int(columns))))
-        doubledash = doubledash[: test_len + 1] + "+" + doubledash[test_len + 2 :]
-        dash = "".join(list(repeat("-", int(columns))))
-        dash = dash[: test_len + 1] + "+" + dash[test_len + 2 :]
-
-        print(doubledash)
-        print("{:>{width}} | {}".format("Sample", "Accept", width=test_len))
-        for row in self.table:
-            print(doubledash)
-            mark = GREEN + "✔" + NC if row["accept"] else RED + "✘" + NC
-            print("{:>{width}} | {}".format(row["test"], mark, width=test_len))
-            if not row["accept"] and int(self.report_verbose) > 0:
-                print(dash)
-                print(row["diff"])
-        print(doubledash)
-
-        # The test which ends with "hide" will not be count to calculate the score.
-        correct_cnt = [
-            row["accept"] for row in self.table if not row["test"].endswith("hide")
-        ].count(True)
-        valid_test_number = len(
-            [test for test in tests if not test.endswith("hide")]
-        )  # not to count hide test case
-        total_score = 0
-        obtained_score = 0
-        try:  # try to use score_dict first
-            total_score = int(self.score_dict[str(valid_test_number)])
-            obtained_score = self.get_score_by_correct_cnt(correct_cnt)
-        except KeyError:  # if the number of tests out of range, use total_score
-            total_score = self.total_score
-            obtained_score = int(correct_cnt / len(tests) * total_score)
-        print(
-            f"Correct/Total problems:\t{correct_cnt}/{valid_test_number}\n"
-            f"Obtained/Total scores:\t{obtained_score}/{total_score}"
-        )
-        returncode = 0
-        if obtained_score < total_score and int(self.report_verbose) < 1:
-            print("\n[INFO] set `-v 1` to get diff result.")
-            print("For example: `judge -v 1`")
-            returncode = 1
-        return returncode
-
-
 def get_args():
     """Init argparser and return the args from cli."""
     parser = argparse.ArgumentParser()
@@ -390,9 +309,7 @@ def judge_all_tests(judge: LocalJudge, verbose_level, score_dict, total_score):
     return report.print_report()
 
 
-def copy_output_to_dir(
-    judge: LocalJudge, output_dir, delete_temp_output, ans_ext
-) -> int:
+def copy_output_to_dir(judge: LocalJudge, output_dir, delete_temp_output, ans_ext):
     """Copy output files into given directory without judgement.
 
     Usually used to create answer files or save the outputs for debugging.
@@ -403,8 +320,10 @@ def copy_output_to_dir(
         os.makedirs(output_dir)
     except OSError as e:
         if e.errno != errno.EEXIST:
-            sys.stderr.write(str(e))
-            return 1
+            judge.error_handler.handle(
+                str(e),
+                exit_or_log="exit",
+            )
     judge.build()
 
     for test in judge.tests:
@@ -415,7 +334,6 @@ def copy_output_to_dir(
         )
         if delete_temp_output == "true":
             os.remove(output_filepath)
-    return 0
 
 
 def main() -> int:
@@ -447,13 +365,12 @@ def main() -> int:
 
     # Copy output files into given directory without judgement
     if not args.output is None:
-        returncode = copy_output_to_dir(
+        copy_output_to_dir(
             judge,
             args.output,
             config["Config"]["DeleteTempOutput"],
             config["Config"]["AnswerExtension"],
         )
-        return returncode
 
     score_dict = json.loads(config["Config"]["ScoreDict"])
     # total_score will be used when the number of tests out of score_dict
