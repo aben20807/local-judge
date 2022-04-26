@@ -361,16 +361,16 @@ def main():
         for row in sheet.rows:
             if row[1].value == this_student_id:
                 for cell in row:
-                    if sheet.cell(row=1, column=cell.column).value in [
+                    if sheet.cell(row=1, column=cell.col_idx).value in [
                         "name",
                         "student_id",
                         "in_log",
                         "log_msg",
                     ]:
                         continue
-                    if cell.column - 3 >= len(result):
+                    if cell.col_idx - 3 >= len(result):
                         break
-                    cell.value = result[cell.column - 3]
+                    cell.value = result[cell.col_idx - 3]
                 break
         book.save(ta_config["TaConfig"]["ScoreOutput"])
 
