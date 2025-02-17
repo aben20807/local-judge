@@ -5,7 +5,6 @@ on:
   workflow_run:
     workflows: ["Run Tests"]
     types: [completed]
-    branches: [master]
 
 jobs:
   build:
