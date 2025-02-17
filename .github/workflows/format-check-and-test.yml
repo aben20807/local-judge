@@ -1,0 +1,63 @@
+name: Code Format Check & Test
+
+on: [push, pull_request]
+
+jobs:
+  format:
+    name: Code Format Check
+    if: ${{ ! startsWith(github.ref, 'refs/tags/') }} # no check and test for tag pushes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check files using the black formatter
+        uses: rickstaa/action-black@v1
+        id: action_black
+        with:
+          black_args: "."
+
+      - name: Annotate diff changes using reviewdog
+        if: steps.action_black.outputs.is_formatted == 'true'
+        uses: reviewdog/action-suggester@v1
+        with:
+          tool_name: blackfmt
+
+      - name: Trigger Test Workflow
+        if: success()
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: test-cli.yml
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+
+  test:
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+    runs-on: ubuntu-latest
+    name: Python ${{ matrix.python-version }} sample
+    needs:
+    - format
+    steps:
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
+
+      - uses: actions/checkout@v4
+
+      - name: Setup python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+          cache: 'pip' # caching pip dependencies
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest setuptools
+          python -m pip install -e .[ta]
+
+      - name: Run unit tests
+        run: python -m pytest tests/test_cli.py

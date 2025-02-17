@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/local-judge?color=blue&style=flat&logo=pypi)](https://pypi.org/project/local-judge/)
 [![Downloads](https://pepy.tech/badge/local-judge)](https://pepy.tech/project/local-judge)
-[![Python version](https://img.shields.io/badge/python-_3.9,_3.10,_3.11,_3.12,_3.13-blue.svg)](https://github.com/aben20807/local-judge/actions/workflows/test-cli.yml)
+[![Python version](https://img.shields.io/badge/python-_3.9,_3.10,_3.11,_3.12,_3.13-blue.svg)](https://github.com/aben20807/local-judge/actions/workflows/format-check-and-test.yml)
 [![GitHub license](https://img.shields.io/github/license/aben20807/local-judge?color=blue)](LICENSE)
 [![Coding style](https://img.shields.io/badge/code%20style-black-1183C3.svg)](https://github.com/psf/black)
 [![Maintainability](https://api.codeclimate.com/v1/badges/cb5df372c4368bedf7ac/maintainability)](https://codeclimate.com/github/aben20807/local-judge/maintainability)
