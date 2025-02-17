@@ -22,13 +22,6 @@ jobs:
         with:
           tool_name: blackfmt
 
-      - name: Trigger Test Workflow
-        if: success()
-        uses: benc-uk/workflow-dispatch@v1
-        with:
-          workflow: test-cli.yml
-          token: ${{ secrets.GITHUB_TOKEN }}
-
 
   test:
     strategy:
