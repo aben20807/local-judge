@@ -233,6 +233,7 @@ class LocalJudge:
             return False, "no_answer_file"
         # Sync the file mode
         copymode(answer_filepath, output_filepath)
+        answer_filepath = '"{}"'.format(answer_filepath)
         cmd = re.sub(r"{output}", output_filepath, self.diff_command)
         cmd = re.sub(r"{answer}", answer_filepath, cmd)
         process = Popen(
